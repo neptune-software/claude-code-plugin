@@ -1,0 +1,12 @@
+{
+    "name": "neptune-dxp-mcp-server",
+    "version": "0.0.1",
+    "private": true,
+    "type": "module",
+    "description": "MCP server bridging Claude Code to the Neptune DXP API",
+    "main": "index.ts",
+    "dependencies": {},
+    "devDependencies": {
+        "@types/bun": "^1.3.10"
+    }
+}
