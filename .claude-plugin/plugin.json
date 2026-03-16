@@ -1,0 +1,10 @@
+{
+    "name": "neptune-dxp-claude-code-plugin",
+    "description": "Integrate seamlessly with Neptune DXP ",
+    "version": "0.0.1",
+    "author": {
+        "name": "Neptune Software",
+        "url": "neptune-software.com"
+    },
+    "homepage": "neptune-software.com"
+}
