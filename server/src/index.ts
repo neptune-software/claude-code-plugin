@@ -1,173 +1,155 @@
 import { createInterface } from "node:readline";
-import { saveCredentials, requireAuth } from "./credentials";
-
-// ---------------------------------------------------------------------------
-// Authenticated fetch
-// ---------------------------------------------------------------------------
-
-async function apiFetch(path: string, options: RequestInit = {}): Promise<unknown> {
-    const { server_url, token } = await requireAuth();
-    const url = `${server_url}${path}`;
-    const res = await fetch(url, {
-        ...options,
-        headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-            ...options.headers,
-        },
-    });
-    if (!res.ok) {
-        const body = await res.text().catch(() => "");
-        throw new Error(`API ${res.status}: ${body || res.statusText}`);
-    }
-    return res.json();
-}
-
-// ---------------------------------------------------------------------------
-// Tool registry
-// ---------------------------------------------------------------------------
+import { login, requireAuthentication } from "./authentication.js";
 
 interface Tool {
     description: string;
-    inputSchema: object;
+    inputSchema?: object;
     handler: (args: Record<string, any>) => Promise<string>;
+}
+
+const { P9_URL, P9_USER, P9_PASSWORD } = process.env;
+if (P9_URL && P9_USER && P9_PASSWORD) {
+    login(P9_URL, P9_USER, P9_PASSWORD);
 }
 
 const tools: Record<string, Tool> = {
     login: {
-        description:
-            "Authenticate with a Neptune DXP instance. Stores the token locally so subsequent calls are authenticated automatically.",
+        description: "Authenticate with a Neptune DXP Planet9 instance. Required before using any other tools.",
         inputSchema: {
             type: "object",
             properties: {
+                serverUrl: { type: "string", description: "Base URL of the Planet9 instance (e.g. https://your-instance.neptune-dxp.com)" },
                 username: { type: "string", description: "Neptune DXP username" },
                 password: { type: "string", description: "Neptune DXP password" },
-                server_url: {
-                    type: "string",
-                    description:
-                        "Base URL of the Neptune DXP instance (e.g. https://your-instance.neptune-dxp.com)",
-                },
             },
-            required: ["username", "password", "server_url"],
+            required: ["serverUrl", "username", "password"],
         },
-        handler: async ({ username, password, server_url }) => {
-            const res = await fetch(`${server_url}/api/auth/login`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ username, password }),
-            });
-            if (!res.ok) {
-                const body = await res.text().catch(() => "");
-                return `Login failed (${res.status}): ${body || res.statusText}`;
-            }
-            const data = await res.json();
-            const token = data.token ?? data.access_token;
-            if (!token) {
-                return "Login response did not contain a token. Response: " + JSON.stringify(data);
-            }
-            await saveCredentials(server_url, token);
-            return `Successfully logged in to ${server_url}.`;
+        handler: async ({ serverUrl, username, password }) => {
+            await login(serverUrl, username, password);
+            return `Successfully logged in to ${serverUrl}.`;
         },
     },
-
-    list_tables: {
-        description: "List all tables in the Neptune DXP workspace.",
+    getTableDefinitions: {
+        description: "List all table definitions from the Neptune DXP data dictionary.",
         inputSchema: { type: "object", properties: {} },
         handler: async () => {
-            const data = await apiFetch("/api/tables");
-            return JSON.stringify(data, null, 2);
+            const { serverUrl, cookie } = requireAuthentication();
+            const res = await fetch(`${serverUrl}/api/functions/Dictionary/List`, {
+                method: 'POST',
+                headers: { Cookie: cookie },
+            });
+            if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
+            return JSON.stringify(await res.json(), null, 2);
         },
     },
-
-    get_table_schema: {
-        description: "Get the column definitions and types for a specific table.",
+    getTableData: {
+        description: "Read rows from a Neptune DXP table. Returns all rows by default, or filter by field values.",
         inputSchema: {
             type: "object",
             properties: {
-                table_id: { type: "string", description: "ID or name of the table" },
-            },
-            required: ["table_id"],
-        },
-        handler: async ({ table_id }) => {
-            const data = await apiFetch(`/api/tables/${encodeURIComponent(table_id)}/schema`);
-            return JSON.stringify(data, null, 2);
-        },
-    },
-
-    query_table: {
-        description: "Read rows from a table, optionally filtering by a query.",
-        inputSchema: {
-            type: "object",
-            properties: {
-                table_id: { type: "string", description: "ID or name of the table" },
-                filter: { type: "string", description: "Optional filter expression to narrow results" },
-                limit: {
-                    type: "integer",
-                    description: "Maximum number of rows to return",
+                tableName: { type: "string", description: "Name of the table to read from" },
+                filter: {
+                    type: "object",
+                    description: "Optional key-value pairs to filter rows (e.g. { \"mood\": \"philosophical\" })",
+                    additionalProperties: true,
                 },
+                limit: { type: "number", description: "Maximum number of rows to return (default: 100)" },
             },
-            required: ["table_id"],
+            required: ["tableName"],
         },
-        handler: async ({ table_id, filter, limit }) => {
+        handler: async ({ tableName, filter, limit }) => {
+            const { serverUrl, cookie } = requireAuthentication();
             const params = new URLSearchParams();
-            if (filter) params.set("filter", filter);
-            if (limit) params.set("limit", String(limit));
-            const queryString = params.toString();
-            const path = `/api/tables/${encodeURIComponent(table_id)}/rows${queryString ? `?${queryString}` : ""}`;
-            const data = await apiFetch(path);
-            return JSON.stringify(data, null, 2);
-        },
-    },
-
-    list_scripts: {
-        description: "List all server-side scripts in the workspace.",
-        inputSchema: { type: "object", properties: {} },
-        handler: async () => {
-            const data = await apiFetch("/api/scripts");
-            return JSON.stringify(data, null, 2);
-        },
-    },
-
-    get_script: {
-        description: "Read the source code of a server-side script.",
-        inputSchema: {
-            type: "object",
-            properties: {
-                script_id: { type: "string", description: "ID or name of the script" },
-            },
-            required: ["script_id"],
-        },
-        handler: async ({ script_id }) => {
-            const data = await apiFetch(`/api/scripts/${encodeURIComponent(script_id)}`);
-            return JSON.stringify(data, null, 2);
-        },
-    },
-
-    update_script: {
-        description: "Update the source code of a server-side script.",
-        inputSchema: {
-            type: "object",
-            properties: {
-                script_id: { type: "string", description: "ID or name of the script" },
-                source: { type: "string", description: "New source code for the script" },
-            },
-            required: ["script_id", "source"],
-        },
-        handler: async ({ script_id, source }) => {
-            const data = await apiFetch(`/api/scripts/${encodeURIComponent(script_id)}`, {
-                method: "PUT",
-                body: JSON.stringify({ source }),
+            if (limit) params.set('$top', String(limit));
+            if (filter) {
+                for (const [key, value] of Object.entries(filter)) {
+                    params.set(key, String(value));
+                }
+            }
+            const qs = params.toString() ? `?${params}` : '';
+            const res = await fetch(`${serverUrl}/api/entity/${tableName}${qs}`, {
+                headers: { Cookie: cookie },
             });
-            return JSON.stringify(data, null, 2);
+            if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
+            return JSON.stringify(await res.json(), null, 2);
         },
     },
-
-    list_apps: {
-        description: "List all apps in the Neptune DXP workspace.",
-        inputSchema: { type: "object", properties: {} },
-        handler: async () => {
-            const data = await apiFetch("/api/apps");
-            return JSON.stringify(data, null, 2);
+    saveTableData: {
+        description: "Create or update a row in a Neptune DXP table. To update an existing row, include the id field.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                tableName: { type: "string", description: "Name of the table to write to" },
+                data: {
+                    type: "object",
+                    description: "Row data as key-value pairs. Include 'id' to update an existing row.",
+                    additionalProperties: true,
+                },
+            },
+            required: ["tableName", "data"],
+        },
+        handler: async ({ tableName, data }) => {
+            const { serverUrl, cookie } = requireAuthentication();
+            const res = await fetch(`${serverUrl}/api/entity/${tableName}`, {
+                method: 'POST',
+                headers: { Cookie: cookie, "Content-Type": "application/json" },
+                body: JSON.stringify(data),
+            });
+            if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
+            return JSON.stringify(await res.json(), null, 2);
+        },
+    },
+    saveTable: {
+        description: "Create or update a table definition in the Neptune DXP data dictionary. To create a new table, omit the id field. To update an existing table, include its id.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                name: { type: "string", description: "Table name" },
+                description: { type: "string", description: "Table description" },
+                fields: {
+                    type: "array",
+                    description: "Array of field definitions",
+                    items: {
+                        type: "object",
+                        properties: {
+                            fieldName: { type: "string", description: "Field name" },
+                            fieldType: { type: "string", description: "Field type (e.g. text, integer, boolean, decimal, timestamp)" },
+                            isUnique: { type: "boolean", description: "Whether the field value must be unique" },
+                        },
+                        required: ["fieldName", "fieldType"],
+                    },
+                },
+                id: { type: "string", description: "Table ID (omit for new tables, include to update existing)" },
+            },
+            required: ["name", "fields"],
+        },
+        handler: async ({ name, description, fields, id }) => {
+            const { serverUrl, cookie } = requireAuthentication();
+            const body: Record<string, any> = {
+                name,
+                description: description ?? null,
+                fields: fields.map((field: any) => ({
+                    fieldName: field.fieldName,
+                    fieldType: field.fieldType,
+                    isUnique: field.isUnique ?? false,
+                    ...(field.id ? { id: field.id } : {}),
+                })),
+                indices: [],
+                foreignKeys: [],
+                enableAudit: false,
+                includeDataInPackage: false,
+                rolesRead: [],
+                rolesWrite: [],
+                ignoreWarning: false,
+            };
+            if (id) body.id = id;
+            const res = await fetch(`${serverUrl}/api/functions/Dictionary/Save`, {
+                method: 'POST',
+                headers: { Cookie: cookie, "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+            });
+            if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
+            return JSON.stringify(await res.json(), null, 2);
         },
     },
 };
@@ -177,17 +159,16 @@ const tools: Record<string, Tool> = {
 // ---------------------------------------------------------------------------
 
 interface JsonRpcMessage {
-    jsonrpc: string;
-    id?: number | string | null;
+    id?: number | null;
     method?: string;
     params?: Record<string, any>;
 }
 
-function jsonrpc(id: number | string | null, result: unknown): string {
+function jsonrpc(id: number | null, result: unknown): string {
     return JSON.stringify({ jsonrpc: "2.0", id, result });
 }
 
-function jsonrpcError(id: number | string | null, code: number, message: string): string {
+function jsonrpcError(id: number | null, code: number, message: string): string {
     return JSON.stringify({ jsonrpc: "2.0", id, error: { code, message } });
 }
 
@@ -225,7 +206,7 @@ async function handleMessage(msg: JsonRpcMessage): Promise<string | null> {
                 return jsonrpcError(id, -32602, `Unknown tool: ${toolName}`);
             }
             try {
-                const text = await tool.handler(params.arguments ?? {});
+                const text = await tool.handler(params?.arguments ?? {});
                 return jsonrpc(id, {
                     content: [{ type: "text", text }],
                 });
@@ -250,16 +231,34 @@ const rl = createInterface({ input: process.stdin });
 
 rl.on("line", async (line: string) => {
     if (!line.trim()) return;
+
+    // Allow us to run pre-defined debug commands during development
+    if (await debug(line)) return;
+
     try {
         const msg: JsonRpcMessage = JSON.parse(line);
         const response = await handleMessage(msg);
         if (response) {
             process.stdout.write(response + "\n");
         }
-    } catch {
+    } catch (error) {
         // Malformed JSON — send parse error if we can
         process.stdout.write(
             jsonrpcError(null, -32700, "Parse error") + "\n"
         );
     }
 });
+
+
+async function debug(method: string) {
+    let output = undefined;
+    if (method === "list") {
+        output = await handleMessage({ method: "tools/list" })
+    }
+
+    if (!!output) {
+        process.stdout.write(output + "\n");
+    }
+
+    return !!output;
+}

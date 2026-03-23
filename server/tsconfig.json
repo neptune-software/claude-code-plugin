@@ -1,5 +1,10 @@
 {
     "compilerOptions": {
-        "types": ["@types/bun"]
-    }
+        "target": "ES2022",
+        "module": "Node16",
+        "moduleResolution": "nodenext",
+        "strict": true,
+        "esModuleInterop": true
+    },
+    "include": ["src"]
 }
