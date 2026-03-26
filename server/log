@@ -1,8 +1,0 @@
-Starting OAuth 2.1 flow for https://p9:8081
-Discovering OAuth endpoints
-Endpoints: authorize=https://p9:8081/authorize, token=https://p9:8081/token, register=https://p9:8081/register
-Callback server listening on port 19876
-Reusing existing client registration: 9bfe1f7f-1630-4ed8-8c60-ee17698336ba
-Opening browser for authorization: https://p9:8081/authorize?response_type=code&client_id=9bfe1f7f-1630-4ed8-8c60-ee17698336ba&redirect_uri=http%3A%2F%2F127.0.0.1%3A19876%2Fcallback&code_challenge=T1frBbrpn2XYaTKnMkZGfP6qNvYl2wbDW_7hodWZNRc&code_challenge_method=S256&scope=mcp%3Atools&state=PyqPMQuXq-PHmZwD3gGEvg&resource=https%3A%2F%2Fp9%3A8081%2Fmcp
-Received authorization code
-OAuth login complete, tokens stored
