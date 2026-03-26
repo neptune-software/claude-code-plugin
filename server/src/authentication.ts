@@ -57,3 +57,7 @@ export function getAuthHeaders(auth: Credentials): Record<string, string> {
 export function setCredentials(auth: Credentials): void {
     credentials = auth;
 }
+
+export function clearAuth(): void {
+    credentials = null;
+}

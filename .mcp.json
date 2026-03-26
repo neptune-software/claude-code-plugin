@@ -2,7 +2,7 @@
   "mcpServers": {
     "neptune-dxp": {
       "command": "npm",
-      "args": ["start", "--prefix", "server"]
+      "args": ["start", "--prefix", "${CLAUDE_PLUGIN_ROOT}/server"]
     }
   }
 }

@@ -1,6 +1,6 @@
 import { createInterface } from "node:readline";
-import { requireAuthentication, getAuthHeaders, setCredentials } from "./authentication.js";
-import { oauthLogin } from "./oauth.js";
+import { requireAuthentication, getAuthHeaders, setCredentials, clearAuth } from "./authentication.js";
+import { oauthLogin, oauthLogout } from "./oauth.js";
 
 interface Tool {
     description: string;
@@ -45,6 +45,24 @@ const tools: Record<string, Tool> = {
                 expiresAt: result.expiresAt,
             });
             return `Successfully authenticated with ${serverUrl} via OAuth 2.1. Access token valid for ~1 hour (auto-refreshes).`;
+        },
+    },
+    oauthLogout: {
+        description: "Log out from a Neptune DXP Planet9 instance. Revokes OAuth tokens and clears stored credentials.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                serverUrl: {
+                    type: "string",
+                    description: "Base URL of the Planet9 instance (e.g. https://p9:8081)",
+                },
+            },
+            required: ["serverUrl"],
+        },
+        handler: async ({ serverUrl }) => {
+            await oauthLogout(serverUrl);
+            clearAuth();
+            return `Successfully logged out from ${serverUrl}. Tokens revoked and credentials cleared.`;
         },
     },
     getTableDefinitions: {

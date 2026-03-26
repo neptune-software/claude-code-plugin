@@ -16,6 +16,7 @@ interface OAuthEndpoints {
     authorizationEndpoint: string;
     tokenEndpoint: string;
     registrationEndpoint: string;
+    revocationEndpoint?: string;
 }
 
 export interface OAuthResult {
@@ -75,12 +76,14 @@ async function discoverOAuthEndpoints(serverUrl: string): Promise<OAuthEndpoints
         authorization_endpoint: string;
         token_endpoint: string;
         registration_endpoint: string;
+        revocation_endpoint?: string;
     };
 
     return {
         authorizationEndpoint: authMeta.authorization_endpoint,
         tokenEndpoint: authMeta.token_endpoint,
         registrationEndpoint: authMeta.registration_endpoint,
+        revocationEndpoint: authMeta.revocation_endpoint,
     };
 }
 
@@ -306,7 +309,8 @@ export async function oauthLogin(serverUrl: string): Promise<OAuthResult> {
     const stored = await loadCredentials(serverUrl);
     if (stored?.oauthTokens && stored.clientRegistration) {
         const now = Math.floor(Date.now() / 1000);
-        if (stored.oauthTokens.expires_at > now + 60) {
+        const oneMinuteFromNow = now + 60;
+        if (stored.oauthTokens.expires_at > oneMinuteFromNow) {
             log("Reusing existing valid access token");
             return {
                 serverUrl,
@@ -452,4 +456,53 @@ export async function tryRestoreOAuthSession(serverUrl: string): Promise<OAuthRe
     } catch {
         return null;
     }
+}
+
+async function revokeToken(
+    revocationEndpoint: string,
+    token: string,
+    tokenTypeHint: string,
+    clientId: string,
+    clientSecret?: string,
+): Promise<void> {
+    const body = new URLSearchParams({
+        token,
+        token_type_hint: tokenTypeHint,
+        client_id: clientId,
+    });
+    if (clientSecret) body.set("client_secret", clientSecret);
+
+    const res = await fetch(revocationEndpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: body.toString(),
+    });
+    if (!res.ok) {
+        throw new Error(`Token revocation failed: ${res.status} ${await res.text()}`);
+    }
+}
+
+export async function oauthLogout(serverUrl: string): Promise<void> {
+    const stored = await loadCredentials(serverUrl);
+    if (!stored?.oauthTokens || !stored.clientRegistration) {
+        await clearCredentials(serverUrl);
+        return;
+    }
+
+    const endpoints = await discoverOAuthEndpoints(serverUrl);
+    if (!endpoints.revocationEndpoint) {
+        await clearCredentials(serverUrl);
+        throw new Error("Server does not support token revocation. Local credentials cleared.");
+    }
+
+    const { client_id, client_secret } = stored.clientRegistration;
+    const { access_token, refresh_token } = stored.oauthTokens;
+
+    await Promise.all([
+        revokeToken(endpoints.revocationEndpoint, access_token, "access_token", client_id, client_secret),
+        revokeToken(endpoints.revocationEndpoint, refresh_token, "refresh_token", client_id, client_secret),
+    ]);
+
+    await clearCredentials(serverUrl);
+    log(`Logged out from ${serverUrl}`);
 }
