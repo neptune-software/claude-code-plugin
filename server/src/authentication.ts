@@ -1,39 +1,59 @@
+import { refreshAccessToken } from "./oauth.js";
+import { saveCredentials } from "./credentials.js";
+import { log } from "./log.js";
+
 export interface Credentials {
     serverUrl: string;
-    cookie: string;
+    accessToken: string;
+    refreshToken: string;
+    tokenEndpoint: string;
+    clientId: string;
+    clientSecret?: string;
+    expiresAt: number;
 }
 
 let credentials: Credentials | null = null;
 
-export async function login(serverUrl: string, username: string, password: string): Promise<Credentials> {
-    const res = await fetch(`${serverUrl}/user/logon/local`, {
-        method: 'POST',
-        body: JSON.stringify({ username, password }),
-        headers: {
-            "Content-Type": "application/json"
-        }
-    });
-
-    if (!res.ok) {
-        throw new Error("Login failed: " + await res.text());
-    }
-
-    const cookie = res.headers.get('set-cookie');
-
-    if (!cookie) {
-        throw new Error("Login response did not contain an authorization cookie");
-    }
-
-    credentials = { serverUrl, cookie };
-    return credentials;
-}
-
-export function requireAuthentication(): Credentials {
+export async function requireAuthentication(): Promise<Credentials> {
     if (!credentials) {
         throw new Error(
-            "Not authenticated. Please use the login tool first with your Neptune DXP credentials."
+            "Not authenticated. Please use the oauthLogin tool first."
         );
     }
+
+    const bufferSeconds = 60;
+    const now = Math.floor(Date.now() / 1000);
+    if (now >= credentials.expiresAt - bufferSeconds) {
+        log("Access token expired, refreshing");
+        try {
+            const newTokens = await refreshAccessToken(
+                credentials.tokenEndpoint,
+                credentials.refreshToken,
+                credentials.clientId,
+                credentials.clientSecret,
+            );
+            credentials = {
+                ...credentials,
+                accessToken: newTokens.access_token,
+                refreshToken: newTokens.refresh_token,
+                expiresAt: newTokens.expires_at,
+            };
+            await saveCredentials(credentials.serverUrl, { oauthTokens: newTokens });
+        } catch (err) {
+            credentials = null;
+            throw new Error(
+                `Token refresh failed: ${(err as Error).message}. Please run oauthLogin again.`
+            );
+        }
+    }
+
     return credentials;
 }
 
+export function getAuthHeaders(auth: Credentials): Record<string, string> {
+    return { Authorization: `Bearer ${auth.accessToken}` };
+}
+
+export function setCredentials(auth: Credentials): void {
+    credentials = auth;
+}

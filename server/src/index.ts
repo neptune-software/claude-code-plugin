@@ -1,5 +1,6 @@
 import { createInterface } from "node:readline";
-import { login, requireAuthentication } from "./authentication.js";
+import { requireAuthentication, getAuthHeaders, setCredentials } from "./authentication.js";
+import { oauthLogin } from "./oauth.js";
 
 interface Tool {
     description: string;
@@ -7,37 +8,50 @@ interface Tool {
     handler: (args: Record<string, any>) => Promise<string>;
 }
 
-const { P9_URL, P9_USER, P9_PASSWORD } = process.env;
-if (P9_URL && P9_USER && P9_PASSWORD) {
-    login(P9_URL, P9_USER, P9_PASSWORD);
+async function apiFetch(path: string, options: RequestInit = {}): Promise<Response> {
+    const credentials = await requireAuthentication();
+    const authHeaders = getAuthHeaders(credentials);
+    return fetch(`${credentials.serverUrl}${path}`, {
+        ...options,
+        headers: {
+            ...authHeaders,
+            ...(options.headers as Record<string, string> | undefined),
+        },
+    });
 }
 
 const tools: Record<string, Tool> = {
-    login: {
-        description: "Authenticate with a Neptune DXP Planet9 instance. Required before using any other tools.",
+    oauthLogin: {
+        description: "Authenticate with a Neptune DXP Planet9 instance using OAuth 2.1. Opens a browser for login and consent. Use this for OAuth-enabled Planet9 servers.",
         inputSchema: {
             type: "object",
             properties: {
-                serverUrl: { type: "string", description: "Base URL of the Planet9 instance (e.g. https://your-instance.neptune-dxp.com)" },
-                username: { type: "string", description: "Neptune DXP username" },
-                password: { type: "string", description: "Neptune DXP password" },
+                serverUrl: {
+                    type: "string",
+                    description: "Base URL of the Planet9 instance (e.g. https://p9:8081)",
+                },
             },
-            required: ["serverUrl", "username", "password"],
+            required: ["serverUrl"],
         },
-        handler: async ({ serverUrl, username, password }) => {
-            await login(serverUrl, username, password);
-            return `Successfully logged in to ${serverUrl}.`;
+        handler: async ({ serverUrl }) => {
+            const result = await oauthLogin(serverUrl);
+            setCredentials({
+                serverUrl: result.serverUrl,
+                accessToken: result.accessToken,
+                refreshToken: result.refreshToken,
+                tokenEndpoint: result.tokenEndpoint,
+                clientId: result.clientId,
+                clientSecret: result.clientSecret,
+                expiresAt: result.expiresAt,
+            });
+            return `Successfully authenticated with ${serverUrl} via OAuth 2.1. Access token valid for ~1 hour (auto-refreshes).`;
         },
     },
     getTableDefinitions: {
         description: "List all table definitions from the Neptune DXP data dictionary.",
         inputSchema: { type: "object", properties: {} },
         handler: async () => {
-            const { serverUrl, cookie } = requireAuthentication();
-            const res = await fetch(`${serverUrl}/api/functions/Dictionary/List`, {
-                method: 'POST',
-                headers: { Cookie: cookie },
-            });
+            const res = await apiFetch("/api/functions/Dictionary/List", { method: "POST" });
             if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
             return JSON.stringify(await res.json(), null, 2);
         },
@@ -58,18 +72,13 @@ const tools: Record<string, Tool> = {
             required: ["tableName"],
         },
         handler: async ({ tableName, filter, limit }) => {
-            const { serverUrl, cookie } = requireAuthentication();
             const params = new URLSearchParams();
-            if (limit) params.set('$top', String(limit));
+            if (limit) params.set("$top", String(limit));
             if (filter) {
-                for (const [key, value] of Object.entries(filter)) {
-                    params.set(key, String(value));
-                }
+                Object.entries(filter).forEach(([key, value]) => params.set(key, String(value)));
             }
-            const qs = params.toString() ? `?${params}` : '';
-            const res = await fetch(`${serverUrl}/api/entity/${tableName}${qs}`, {
-                headers: { Cookie: cookie },
-            });
+            const query = params.toString() ? `?${params}` : "";
+            const res = await apiFetch(`/api/entity/${tableName}${query}`);
             if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
             return JSON.stringify(await res.json(), null, 2);
         },
@@ -89,10 +98,9 @@ const tools: Record<string, Tool> = {
             required: ["tableName", "data"],
         },
         handler: async ({ tableName, data }) => {
-            const { serverUrl, cookie } = requireAuthentication();
-            const res = await fetch(`${serverUrl}/api/entity/${tableName}`, {
-                method: 'POST',
-                headers: { Cookie: cookie, "Content-Type": "application/json" },
+            const res = await apiFetch(`/api/entity/${tableName}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(data),
             });
             if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
@@ -124,7 +132,6 @@ const tools: Record<string, Tool> = {
             required: ["name", "fields"],
         },
         handler: async ({ name, description, fields, id }) => {
-            const { serverUrl, cookie } = requireAuthentication();
             const body: Record<string, any> = {
                 name,
                 description: description ?? null,
@@ -143,9 +150,9 @@ const tools: Record<string, Tool> = {
                 ignoreWarning: false,
             };
             if (id) body.id = id;
-            const res = await fetch(`${serverUrl}/api/functions/Dictionary/Save`, {
-                method: 'POST',
-                headers: { Cookie: cookie, "Content-Type": "application/json" },
+            const res = await apiFetch("/api/functions/Dictionary/Save", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(body),
             });
             if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
@@ -153,10 +160,6 @@ const tools: Record<string, Tool> = {
         },
     },
 };
-
-// ---------------------------------------------------------------------------
-// JSON-RPC helpers
-// ---------------------------------------------------------------------------
 
 interface JsonRpcMessage {
     id?: number | null;
@@ -171,10 +174,6 @@ function jsonrpc(id: number | null, result: unknown): string {
 function jsonrpcError(id: number | null, code: number, message: string): string {
     return JSON.stringify({ jsonrpc: "2.0", id, error: { code, message } });
 }
-
-// ---------------------------------------------------------------------------
-// MCP protocol handler
-// ---------------------------------------------------------------------------
 
 async function handleMessage(msg: JsonRpcMessage): Promise<string | null> {
     // Notifications (no id) — ignore silently
@@ -223,17 +222,10 @@ async function handleMessage(msg: JsonRpcMessage): Promise<string | null> {
     }
 }
 
-// ---------------------------------------------------------------------------
-// stdin/stdout transport
-// ---------------------------------------------------------------------------
-
 const rl = createInterface({ input: process.stdin });
 
 rl.on("line", async (line: string) => {
     if (!line.trim()) return;
-
-    // Allow us to run pre-defined debug commands during development
-    if (await debug(line)) return;
 
     try {
         const msg: JsonRpcMessage = JSON.parse(line);
@@ -248,17 +240,3 @@ rl.on("line", async (line: string) => {
         );
     }
 });
-
-
-async function debug(method: string) {
-    let output = undefined;
-    if (method === "list") {
-        output = await handleMessage({ method: "tools/list" })
-    }
-
-    if (!!output) {
-        process.stdout.write(output + "\n");
-    }
-
-    return !!output;
-}
