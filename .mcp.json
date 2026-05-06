@@ -1,8 +1,9 @@
 {
   "mcpServers": {
     "neptune-dxp": {
-      "command": "npm",
-      "args": ["start", "--prefix", "${CLAUDE_PLUGIN_ROOT}/server"]
+      "type": "http",
+      "url": "${user_config.serverUrl}/mcp",
+      "alwaysLoad": true
     }
   }
 }

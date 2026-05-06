@@ -4,5 +4,13 @@
   "version": "0.0.1",
   "author": {
     "name": "Neptune Software"
+  },
+  "userConfig": {
+    "serverUrl": {
+      "type": "string",
+      "title": "Planet9 server URL",
+      "description": "Base URL of your Neptune Planet9 server (e.g. https://planet9.example.com). The plugin appends /mcp.",
+      "required": true
+    }
   }
 }
