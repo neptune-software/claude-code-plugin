@@ -1,0 +1,16 @@
+{
+    "name": "neptune-dxp-marketplace",
+    "owner": {
+        "name": "Neptune Software"
+    },
+    "plugins": [
+        {
+            "name": "neptune-dxp",
+            "source": {
+                "source": "github",
+                "repo": "neptune-software/claude-code-plugin"
+            },
+            "description": "MCP server bridging Claude Code to the Neptune DXP API \u2014 tables, scripts, and apps."
+        }
+    ]
+}

@@ -1,9 +1,9 @@
 {
-  "mcpServers": {
-    "neptune-dxp": {
-      "type": "http",
-      "url": "${user_config.serverUrl}/mcp",
-      "alwaysLoad": true
+    "mcpServers": {
+        "neptune-dxp": {
+            "type": "http",
+            "url": "${user_config.serverUrl}/mcp",
+            "alwaysLoad": true
+        }
     }
-  }
 }
