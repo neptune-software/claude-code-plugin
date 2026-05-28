@@ -28,6 +28,7 @@ Everything in DXP is a row in a typed table. The MCP tools in this plugin expose
 | **Adaptive app** | adaptive metadata | No-code data-driven app built in Adaptive Designer from a table or server-script data source, configured via templates. |
 | **PDF template** | pdf metadata | Drag-and-drop PDF layout built in PDF Designer, populated by server scripts or APIs at generation time. |
 | **Launchpad** | launchpad metadata | A tile/role configuration mapping users → apps. The runtime end-user surface. |
+| **Web App** | `webapp` | A code-first application where you author the HTML/JS/CSS directly, instead of App Designer's drag-and-drop UI5. |
 
 ## How the pieces connect
 
@@ -39,7 +40,7 @@ The typical chain for a user action in a deployed app:
 4. The script puts its output on `result` (data, statusCode, contentType, etc.) and the runtime serializes it back.
 5. Workflows are orchestrated separately and can invoke server scripts as script-task steps.
 
-A server script is therefore not a free-floating module — it's an artifact bound to one or more API operations. To wire a new endpoint: create/extend an API (`apiType: "script"`), add a path, point the path's `serverScript` field at the script's id. The `manage-apis` skill covers the API side; `run-server-script` covers direct invocation.
+A server script not always a free-floating module — it's an artifact bound to one or more API operations. To wire a new endpoint: create/extend an API (`apiType: "script"`), add a path, point the path's `serverScript` field at the script's id. The `manage-apis` skill covers the API side; `run-server-script` covers direct invocation.
 
 ## Platform-specific rules that diverge from generic Node.js
 
@@ -51,14 +52,15 @@ These are the differences that bite people who assume "it's just Node":
 - **`req.user`** is wired automatically from the authenticated session/token — you don't read it from headers manually.
 - **`req.p9`** holds platform context: `req.p9.api` is the API artifact, `req.p9.operation` is the matched path operation. Populated by the HTTP route only; absent on direct MCP execution.
 - **TypeORM is the ORM.** Table-backed access uses TypeORM, not raw SQL drivers. Migrations are not hand-written — schema changes go through the Table Designer.
-- **App resources (JS in App Designer)** run in the browser as UI5 controllers. Don't confuse them with server scripts. The App Designer's "JavaScript resource" is client-side code; the Script Editor's `jsscript` is server-side.
+- **App resources (JS in App Designer)** run in the browser as UI5 controllers. Don't confuse them with server scripts. The App Designer's "JavaScript resource" is client-side code
 
 ## Vocabulary cheat sheet
 
 | Term | Means |
 |---|---|
 | App / Application | UI artifact in App Designer (`application` table) |
-| Server script / jsscript | Server-side JS/TS in Script Editor (`jsscript` table) |
+| Web App | Code-first app — hand-authored HTML/JS/CSS (`webapp` table) |
+| Server script | Server-side JS/TS in Script Editor (`jsscript` table) |
 | API | API Designer artifact binding routes to scripts / tables / upstream URLs |
 | Cockpit | Developer workspace |
 | Launchpad | End-user runtime surface |
