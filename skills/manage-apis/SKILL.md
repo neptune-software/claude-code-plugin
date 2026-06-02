@@ -12,7 +12,7 @@ An API artifact in Neptune DXP is a config record that the runtime uses to: prox
 | Tool | Purpose |
 |---|---|
 | `list_apis` | All APIs with id/name/endpoint/description/type/status — no nested paths/definitions in the response. |
-| `get_api({ id })` | Full record including all paths, definitions, auth, endpoints, roles. ~30KB for a typical OpenAPI 3 import. |
+| `get_api({ id })` | Returns an **envelope** `{ api, apps, scripts, webapps }` — the artifact itself is under `.api` (paths, definitions, auth, endpoints, roles all nested there), with consumer/dependent info alongside. ~30KB for a typical OpenAPI 3 import. (Note: `list_apis` returns flat records, not this envelope.) |
 | `save_api({ api })` | Create (no `id`) or update (with `id`). Pass the full object — partial updates replace whole arrays (see Partial updates below). |
 | `delete_api({ id })` | Permanent. No undo. |
 
@@ -25,21 +25,19 @@ Just two:
 - `name` (string, max 64) — the designer name
 - `endpoint` (string, max 128) — base URL the runtime treats as canonical. For proxy APIs: the upstream base URL (`https://api.example.com/v1`). For server-script APIs: a local path like `/api/serverscript/my-api`.
 
-Everything else has sane defaults — except `apiType`, which is structurally important (see below).
+Everything else has sane defaults. Note `apiType` is **not settable over MCP** (see below).
 
-## `apiType` matters — pick it correctly up front
+## `apiType` is read-only over MCP — a real limitation
 
-This is not a cosmetic label. The runtime and the cockpit both branch on it:
+`apiType` decides what an API *is*, and the cockpit/runtime branch on it:
 
-| `apiType` value | What the API is | Can attach server scripts to paths? |
+| `apiType` | What the API is | Server scripts attachable? |
 |---|---|---|
-| `""` / null | External HTTP-proxy API (calls forwarded to `endpoint` upstream via `/proxy/...`) | **No** |
-| `"table"` | Backed by a Neptune table / dictionary | **No** |
-| `"script"` | Backed by server scripts (hit via `/api/serverscript/<name>/<operation>`) | **Yes** |
+| `""` / null | External HTTP-proxy API (forwarded to `endpoint` via `/proxy/...`) | No |
+| `"table"` | Backed by a Neptune table / dictionary | No |
+| `"script"` | Backed by server scripts (`/api/serverscript/<name>/<operation>`) | Yes |
 
-The cockpit Script Editor filters to `apiType === "script"` only when assigning a script to an API path (see `src/client/scripteditor*.html`). The runtime context builder also branches on `apiType` for table vs script vs external behavior (see `src/server-script/context-builder.ts:279, 319`).
-
-If you create an API with `apiType: ""` and later try to attach a server script to one of its operations, the script editor won't see your API in the dropdown. You'd have to change `apiType` to `"script"` first.
+**You cannot set `apiType` through `save_api`.** It is an excluded key in `APISaveSchema` (`src/validation/schemas/artifacts/api.schemas.ts`), so it is silently stripped — every MCP-created API is `apiType: null` (verified: saving `apiType: "script"` reads back `null`). Consequence: an API created over MCP is untyped, so the cockpit Script Editor won't let you attach a server script to its paths (it filters to `apiType === "script"`). To get a script-backed endpoint, create/convert the API in the cockpit API Designer (which sets `apiType: "script"`), then use `save_api` for its paths/definitions.
 
 ## Runtime flags — the security-relevant ones
 
@@ -47,7 +45,7 @@ These determine what the proxy route does at runtime. Get them wrong and you've 
 
 - `enableProxy: true` — required for `/proxy/<url>/<apiId>` to forward to the upstream. Off by default.
 - `restrictAccess: true` — blocks **every** proxy call, regardless of roles. The hard-off switch.
-- `roles: [{ id: <roleId> }, ...]` — users must hold at least one of these roles to proxy through this API. **Use `roles` plural — `role` singular is a schema-level bug that gets silently dropped.**
+- `role: [{ id: <roleId> }, ...]` — users must hold at least one of these roles to proxy through this API. **On `save_api` the field is `role` (singular); the save schema strips `roles` (plural). But `get_api` returns the assignment back under `roles`.** Read = `roles`, write = `role` (see Gotchas).
 - `paths[].operAccess: ["<roleId>", ...]` — per-operation role narrowing. Applied *after* the API-level roles pass.
 - `enableTrace: true` — writes an `api_trace` row per proxy call (api id, operation id, runtime, status). Useful for debugging; noisy at high volume.
 - `tlsAllowUntrusted: true` — accepts self-signed/invalid upstream certs. Don't set unless you understand why.
@@ -84,10 +82,11 @@ When importing from OpenAPI 3, each `components/schemas` entry lands here.
 
 ## Gotchas (schema can't tell you these)
 
-- **`roles` plural, not `role`.** Schema declares `role` because of a legacy field-name choice; the entity column is `roles`. Sending `role: [...]` silently does nothing. Always `roles`.
-- **`apiFormat` is not really about Swagger 2 vs OpenAPI 3.** The flag exists (0 vs 1) and was introduced for import provenance, but the two specs describe the same shapes for the same things — the runtime treats them interchangeably. The only place `apiFormat === 1` actually branches anything is App Designer's internal `convertOA3ToOA2` shim. Default of `0` is fine for hand-crafted APIs; Pick OpenAPI.
-- **Auto-set fields are read-only in practice.** `id` (set on create), `ver` (set per save), `createdAt`/`updatedAt`/`createdBy`/`changedBy` (auto). Don't pass them on update — they'll be overwritten anyway.
-- **Saving with `id` is update, not upsert.** If the id doesn't exist, the save silently does nothing instead of creating. Use `get_api` first to confirm the id exists.
+- **Read/write field-name asymmetry on roles.** `get_api` returns assigned roles under **`roles`** (the entity relation), but `save_api` accepts only **`role`** (singular) and **strips `roles`** (it's in `APISaveSchema`'s excluded keys). So if you `get_api`, edit, and `save_api` back verbatim, the role assignment is dropped — you must set `role: [{ id }]` before saving. (Derived from `src/validation/schemas/artifacts/api.schemas.ts`; not live-tested here because the dev instance had no roles defined.)
+- **`apiFormat` (0 vs 1) is import provenance, not behavior.** Swagger 2 and OpenAPI 3 describe the same shapes; the runtime treats them interchangeably. Default `0` is fine for hand-crafted APIs.
+- **Auto-set fields are read-only in practice.** `id` (set on create), `ver` (set per save), `createdAt`/`updatedAt`/`createdBy`/`changedBy` (auto). Don't pass them on update.
+- **Saving with an unknown `id` creates it (upsert), it does NOT no-op.** Verified on 24.15: `save_api` with a random `id` inserts a new record carrying that id. Don't treat a stale `id` as a safe no-op — confirm with `get_api` if you intend update-only.
+- **`delete_api` does not validate existence.** Deleting a non-existent id returns `API '<id>' deleted` with no error (unlike `delete_app`, which errors). A success message is not proof the id existed.
 - **`enableProxy: false` + paths defined** is valid but useless — the runtime route is closed. Easy to set up an API and wonder why `/proxy/...` returns nothing.
 - **`api_trace.statusCode` column is always NULL** — Planet 9 doesn't populate it. The trace row's `status` field (`'success' | 'error'`) is what tells you the outcome, not HTTP status.
 
@@ -141,11 +140,11 @@ save_api({ "api": {
   "id": "<existing-api-id>",
   "name": "internal-api",
   "endpoint": "/api/internal",
-  "roles": [{ "id": "<role-uuid>" }]
+  "role": [{ "id": "<role-uuid>" }]
 }})
 ```
 
-Get the role UUID by listing roles via the cockpit or by querying the `role` table directly. Admin users have no implicit access; if `roles` is set and admin isn't in any of them, admin is blocked.
+Note the field is `role` (singular) on save — see the roles gotcha above. Get the role UUID by querying the `role` table directly. Admin users have no implicit access; if a role restriction is set and admin isn't in any of them, admin is blocked.
 
 ## Discovery flow
 

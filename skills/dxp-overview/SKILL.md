@@ -1,6 +1,6 @@
 ---
 name: dxp-overview
-description: Foundational concepts for working with a Neptune DXP - Open Edition instance via this plugin. Covers what Neptune DXP is, the Cockpit vs Launchpad split, the core artifact model (apps, server scripts, APIs, tables, workflows), how those artifacts connect at runtime, and the platform-specific rules that diverge from generic Node.js conventions (e.g. NPM module loading via the `modules.*` global, not `require`/`import`). Invoke at the start of any conversation involving Neptune DXP, before reasoning about App Designer / Script Editor / API Designer artifacts, when interpreting DXP terminology (Planet9, Cockpit, Launchpad, Adaptive, jsscript), or when a Neptune MCP tool returns results that reference these concepts. Other skills in this plugin (search-docs, manage-apis, run-server-script) build on the vocabulary defined here.
+description: Foundational concepts for working with a Neptune DXP - Open Edition instance via this plugin. Covers what Neptune DXP is, the Cockpit vs Launchpad split, the core artifact model (apps, server scripts, APIs, tables, workflows), how those artifacts connect at runtime, and the platform-specific rules that diverge from generic Node.js conventions (e.g. NPM module loading via the `modules.*` global, not `require`/`import`). Invoke at the start of any conversation involving Neptune DXP, before reasoning about App Designer / Script Editor / API Designer artifacts, when interpreting DXP terminology (Planet9, Cockpit, Launchpad, Adaptive), or when a Neptune MCP tool returns results that reference these concepts. Other skills in this plugin (search-docs, manage-apis, run-server-script) build on the vocabulary defined here.
 ---
 
 # Neptune DXP — orientation
@@ -20,8 +20,8 @@ Everything in DXP is a row in a typed table. The MCP tools in this plugin expose
 
 | Artifact | Table | What it is |
 |---|---|---|
-| **App** | `application` | A UI built in App Designer (UI5/OpenUI5-based, drag-and-drop). Has resources (JS, CSS, images), components, and event handlers. |
-| **Server script** | `jsscript` | A JS/TS function executed server-side, in Node.js, on an API request. Accesses `req` (request context) and writes to `result`. |
+| **App** | `app` | A UI built in App Designer (UI5/OpenUI5-based, drag-and-drop). Has resources (JS, CSS, images), components, and event handlers. |
+| **Server script** | script metadata | A JS/TS function executed server-side, in Node.js, on an API request. Accesses `req` (request context) and writes to `result`. |
 | **API** | `api` | The route/binding artifact. Can proxy to an upstream URL, expose a server script over HTTP, or wrap a table for CRUD. Enforces role gating. See the `manage-apis` skill. |
 | **Table / dictionary** | dictionary metadata | Schema definitions managed via Table Designer. Server scripts read/write via TypeORM. |
 | **Workflow** | workflow | Visual process model built in Workflow Editor. Tasks include script tasks (call server scripts), user tasks, etc. |
@@ -52,15 +52,16 @@ These are the differences that bite people who assume "it's just Node":
 - **`req.user`** is wired automatically from the authenticated session/token — you don't read it from headers manually.
 - **`req.p9`** holds platform context: `req.p9.api` is the API artifact, `req.p9.operation` is the matched path operation. Populated by the HTTP route only; absent on direct MCP execution.
 - **TypeORM is the ORM.** Table-backed access uses TypeORM, not raw SQL drivers. Migrations are not hand-written — schema changes go through the Table Designer.
+- **External tables vs internal tables.** *External* tables are the application's own data, physically stored as `entityset_*` (a dictionary table named `customer` lives as `entityset_customer`). These are yours to read and write. *Internal* tables are the platform's own (`app`, `api`, `dictionary`, `webapp`, and the rest of the runtime schema). You may **read** an internal table if you genuinely need to, but **should never insert, update, alter, or delete** in one — that can brick the instance. Mutate platform artifacts only through the MCP tools / Cockpit, never by writing their tables directly.
 - **App resources (JS in App Designer)** run in the browser as UI5 controllers. Don't confuse them with server scripts. The App Designer's "JavaScript resource" is client-side code
 
 ## Vocabulary cheat sheet
 
 | Term | Means |
 |---|---|
-| App / Application | UI artifact in App Designer (`application` table) |
+| App / Application | UI artifact in App Designer (`app` table) |
 | Web App | Code-first app — hand-authored HTML/JS/CSS (`webapp` table) |
-| Server script | Server-side JS/TS in Script Editor (`jsscript` table) |
+| Server script | Server-side JS/TS in Script Editor |
 | API | API Designer artifact binding routes to scripts / tables / upstream URLs |
 | Cockpit | Developer workspace |
 | Launchpad | End-user runtime surface |
@@ -71,9 +72,19 @@ These are the differences that bite people who assume "it's just Node":
 | NPM Modules (cockpit app) | Where users add/manage third-party packages available as `modules.*` |
 | Connector | Adaptive Framework's tool for publishing data sources (tables, server scripts, Excel imports) for adaptive apps |
 | Cockpit tile group | Logical grouping of cockpit tools (Development, Design, etc.) |
+| Package | Transport/bundle container (`dev_package` table). Artifacts join a package by setting their own `package` field to its id — the package doesn't list its members. MCP tools: `list_packages`, `get_package` (returns members bucketed by type), `save_package` (only `name` is required), `delete_package` (clears members' `package` link, doesn't delete them). |
 
 ## Related skills
 
+Each major artifact segment has its own skill. Invoke the matching one when the user works on that segment:
+
 - **`search-docs`** — search the public DXP documentation when you need detail on a feature or to look up an error.
-- **`manage-apis`** — create/update/inspect API artifacts via MCP.
+- **`manage-apps`** — App Designer applications (UI5). Includes the save → `activate` publish cycle.
+- **`manage-webapps`** — code-first React/Vue web apps.
+- **`manage-server-scripts`** — author/organize server scripts and script projects.
 - **`run-server-script`** — execute a server script directly by id via MCP.
+- **`manage-apis`** — create/update/inspect API artifacts via MCP.
+- **`manage-tables`** — table definitions (dictionary) and reading rows.
+- **`manage-adaptive`** — Adaptive Framework data-driven entities.
+- **`manage-npm-modules`** — install/manage third-party packages exposed as `modules.*`.
+- **`inspect-system-logs`** — read the daily server/exception/script/request/vault logs.

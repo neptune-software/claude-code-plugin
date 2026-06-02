@@ -1,11 +1,11 @@
 ---
 name: run-server-script
-description: Execute a Neptune DXP server script directly via the MCP `run_server_script` tool. Use when the user wants to invoke, test, or trigger a specific server script by id without going through an HTTP API endpoint. Trigger phrases include "run that script", "execute the server script", "trigger the script", "call this jsscript", "test my script".
+description: Execute a Neptune DXP server script directly via the MCP `run_server_script` tool. Use when the user wants to invoke, test, or trigger a specific server script by id without going through an HTTP API endpoint. Trigger phrases include "run that script", "execute the server script", "trigger the script", "test my script".
 ---
 
 # Running a Neptune DXP server script via MCP
 
-The `run_server_script` MCP tool executes a `jsscript` row directly by its UUID. It bypasses the HTTP route at `/api/serverscript/:name[/:operation]` and all the API-artifact resolution that comes with it — no name lookup, no operation/method matching, no per-API role gating.
+The `run_server_script` MCP tool executes a server script directly by its UUID. It bypasses the HTTP route at `/api/serverscript/:name[/:operation]` and all the API-artifact resolution that comes with it — no name lookup, no operation/method matching, no per-API role gating.
 
 This is the right tool for: testing a script in isolation, running maintenance/utility scripts, or invoking any script where you already have the id and don't need an API artifact wrapping it.
 
@@ -13,7 +13,7 @@ This is the right tool for: testing a script in isolation, running maintenance/u
 
 | Field | Type | Notes |
 |---|---|---|
-| `id` | UUID, required | The `jsscript.id`. Use `list_script_projects` or `list_ungrouped_scripts` to browse, then `get_server_script` to inspect a specific one. |
+| `id` | UUID, required | The server script's `id`. Use `list_script_projects` or `list_ungrouped_scripts` to browse, then `get_server_script` to inspect a specific one. |
 | `body` | object, optional | Becomes `req.body` inside the script. |
 | `params` | object<string,string>, optional | Becomes `req.params` — used by scripts that read path-style params like `req.params.userId`. |
 | `query` | object<string,string>, optional | Becomes `req.query`. |
@@ -27,7 +27,7 @@ The tool returns the script's `result` object as JSON. Common patterns:
 
 - Script set `result.data = {...}` → returns `{ "data": {...} }`
 - Script set `result.data`, `result.statusCode`, `result.contentType`, `result.filename`, `result.headers` → all preserved
-- Script set nothing on `result` → returns `null`
+- Script set nothing on `result` → returns `{}` (the empty result object), **not** `null`. (Verified against a running 24.15 server. `null` is only returned in edge cases where the runtime produces no result object at all.)
 
 Example script:
 
