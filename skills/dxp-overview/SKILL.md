@@ -88,3 +88,22 @@ Each major artifact segment has its own skill. Invoke the matching one when the 
 - **`manage-adaptive`** — Adaptive Framework data-driven entities.
 - **`manage-npm-modules`** — install/manage third-party packages exposed as `modules.*`.
 - **`inspect-system-logs`** — read the daily server/exception/script/request/vault logs.
+
+## MCP tool skill routing
+
+Before using or interpreting the result of an MCP tool, load the skill that documents that tool. The MCP tool schema describes the call shape, but the skill explains Neptune DXP behavior, return field meanings in depth, and safe workflows.
+
+| If you use these MCP tools | First read this skill |
+|---|---|
+| `list_apps`, `get_app`, `save_app`, `activate_app`, `delete_app` | `manage-apps` |
+| `list_webapps`, `get_webapp`, `save_webapp`, `delete_webapp` | `manage-webapps` |
+| `list_apis`, `get_api`, `save_api`, `delete_api` | `manage-apis` |
+| `list_script_projects`, `get_script_project`, `create_script_project`, `delete_script_project`, `list_ungrouped_scripts`, `get_server_script`, `save_server_script`, `delete_server_script` | `manage-server-scripts` |
+| `run_server_script` | `run-server-script` |
+| `list_adaptive`, `get_adaptive`, `save_adaptive`, `delete_adaptive` | `manage-adaptive` |
+| `list_tables`, `get_table`, `save_table`, `delete_table`, `query_entity_table` | `manage-tables` |
+| `list_packages`, `get_package`, `save_package`, `delete_package` | `dxp-overview` |
+| `list_system_logs`, `get_system_log` | `inspect-system-logs` |
+| `list_npm_modules`, `get_npm_module`, `install_npm_module`, `uninstall_npm_module` | `manage-npm-modules` |
+
+Do not infer Neptune DXP behavior from MCP field names alone. Load the matching skill first, then use the tool or interpret results from the tool call.

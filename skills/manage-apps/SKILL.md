@@ -13,8 +13,8 @@ An App Designer application is a UI5/OpenUI5 UI built in the Cockpit's App Desig
 
 | Tool | Purpose |
 |---|---|
-| `list_apps` | All apps with id/name/title/description/type/status. No nested component tree. |
-| `get_app({ id })` | Full design-time record: components, data models, resources, event handlers. Can be large. |
+| `list_apps` | All apps with id/name/description/type. No nested component tree. |
+| `get_app({ id })` | Full design-time record: components, data models, resources, event handlers, title, status. Can be large. |
 | `save_app({ app })` | Create (no `id`) or update (with `id`). Writes the design-time `app` table only. |
 | `activate_app({ id })` | Push design-time → runtime, regenerate `ver`, compile CSS. Required to make edits live. |
 | `delete_app({ id })` | Permanent delete. No undo. |
@@ -38,11 +38,13 @@ The cockpit and runtime both branch on `appType`. It is a single-character enum:
 | `"F"` | Adaptive app (data-driven; see the `manage-adaptive` skill) |
 | `"E"` | Custom component |
 
-`status` is `"Active"` or `"Inactive (Revised)"` (set by activation, not by you).
+`get_app.status` is `"Active"`, `"Inactive (Revised)"` or `null` (set by activation, not by you). `null` is valid and means the app has not been activated yet. Use this field to check activation state without calling `activate_app`.
+
+Use `get_app({ id })` and check `status` when reasoning about whether design-time app changes are active/current. Do not use `list_apps.disabled` for this; `disabled` only means the runtime app is enabled/disabled.
 
 ## The save → activate cycle (the thing that bites people)
 
-`save_app` writes design-time only. **Runtime users see nothing until `activate_app` runs.** The normal flow is:
+`save_app` writes design-time only. **Runtime users see nothing until `activate_app` runs.** `get_app({ id })` is the tool that reports the design-time activation state via `status`. The normal flow is:
 
 1. `save_app({ app })` — persist the edit
 2. `activate_app({ id })` — compile and publish
