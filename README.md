@@ -1,3 +1,9 @@
+  > [!NOTE]
+> **Beta.** This plugin is in active development and still evolving — tools and
+> behavior may change between releases. We recommend running it against a
+> **development or local** Neptune DXP instance. Feedback is very welcome.
+ 
+ 
 # Neptune DXP — Claude Code Plugin
 
 Connects [Claude Code](https://claude.com/claude-code) to a Neptune DXP - Open
@@ -17,7 +23,7 @@ Then run `/mcp` to authenticate — a browser window opens for OAuth login.
 
 ## Requirements
 
-- A Neptune DXP - Open Edition server higher than 24.15.0
+- A Neptune DXP - Open Edition 24.15.0 or higher. 
 - Read access to this repo (SSH key or cached HTTPS PAT) so `/plugin marketplace add` can clone it.
 
 ## Updating
