@@ -24,7 +24,6 @@ Then run `/mcp` to authenticate — a browser window opens for OAuth login.
 ## Requirements
 
 - A Neptune DXP - Open Edition 24.15.0 or higher. 
-- Read access to this repo (SSH key or cached HTTPS PAT) so `/plugin marketplace add` can clone it.
 
 ## Updating
 
