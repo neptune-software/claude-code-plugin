@@ -32,18 +32,18 @@ Required for a new table:
 - `fields` — array of column definitions. Each field is shaped like:
 
 ```json
-{ "fieldName": "email", "fieldType": "varchar", "isNullable": false, "isUnique": true }
+{ "fieldName": "email", "fieldType": "text", "isNullable": false, "isUnique": true }
 ```
 
-`fieldType` **must** be one of the Planet 9 column types — anything else fails with `Invalid field type '<x>' for column '<name>'`:
+`fieldType` **must** be one of these column types:
 
 ```
-boolean, char, varchar, smallint, integer, bigint, decimal,
-tinytext, smalltext, mediumtext, text, timestamp, timestamptz,
-enum, uuid, json, vector
+boolean, smallint, integer, bigint, decimal,
+smalltext, mediumtext, text, timestamp, timestamptz,
+uuid, json, vector
 ```
 
-(`vector` is for embeddings and uses a fixed runtime length of 1536. **Do not set `length` on a vector via `save_table`** — the save reports success but corrupts the table's entity metadata and wedges every subsequent table/script operation with `Column … does not support length property` until the bad definition row is removed directly in the DB. `enum` columns take their allowed values in an `enum: ["a","b"]` array, not in `options`.) Optional per-field: `isUnique`, `isNullable`, `description`, `default`, `minLength`/`maxLength`, `example`.
+(`vector` is for embeddings and uses a fixed runtime length of 1536. **Do not set `length` on a vector via `save_table`** — the save reports success but corrupts the table's entity metadata and wedges every subsequent table/script operation with `Column … does not support length property` until the bad definition row is removed directly in the DB.) Optional per-field: `isUnique`, `isNullable`, `description`, `default`, `minLength`/`maxLength`, `example`.
 
 Optional on the table: `indices` (`IndexDef[]` — `{ name, columns, isUnique, isVector }`) and foreign keys (`ForeignKeyDef[]` — `{ name, referencedTable, columns, referencedTableColumns, onDelete }`).
 
