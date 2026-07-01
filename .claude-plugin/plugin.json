@@ -9,7 +9,7 @@
         "serverUrl": {
             "type": "string",
             "title": "Neptune DXP - Open Edition server URL",
-            "description": "Base URL of your Neptune DXP - Open Edition server (e.g. https://dxp.example.com). The plugin appends /mcp.",
+            "description": "Base URL of your Neptune DXP - Open Edition server, e.g. https://dxp.example.com (no trailing slash). The plugin appends /mcp.",
             "required": true
         }
     }

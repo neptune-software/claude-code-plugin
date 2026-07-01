@@ -88,6 +88,7 @@ Each major artifact segment has its own skill. Invoke the matching one when the 
 - **`manage-adaptive`** — Adaptive Framework data-driven entities.
 - **`manage-npm-modules`** — install/manage third-party packages exposed as `modules.*`.
 - **`inspect-system-logs`** — read the daily server/exception/script/request/vault logs.
+- **`connection`** — inspect, connect, switch, and troubleshoot the connection to an instance.
 
 ## MCP tool skill routing
 
@@ -107,3 +108,5 @@ Before using or interpreting the result of an MCP tool, load the skill that docu
 | `list_npm_modules`, `get_npm_module`, `install_npm_module`, `uninstall_npm_module` | `manage-npm-modules` |
 
 Do not infer Neptune DXP behavior from MCP field names alone. Load the matching skill first, then use the tool or interpret results from the tool call.
+
+If a tool fails at the **connection level** — every neptune-dxp tool errors the same way, the tools never load, or you get a `/mcp` 404 / timeout / auth loop rather than a domain error — that's not a per-tool problem. Load the `connection` skill instead (its `issues.md` has the failure playbook).
