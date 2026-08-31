@@ -11,7 +11,7 @@ The Adaptive Framework builds no-code, data-driven apps from a data source plus 
 
 | Tool | Purpose |
 |---|---|
-| `list_adaptive` | All adaptive entities. |
+| `list_adaptive` | Adaptive entities. Supports `listOptions` (`where`/`select`/`take`/`skip`/`order`) to filter, project, and sort by field. |
 | `get_adaptive({ id })` or `get_adaptive({ name })` | One entity with full `settings` and field definitions. **Either `id` or `name` is required.** |
 | `save_adaptive({ adaptive })` | Create (no `id`) or update (with `id`). Pass the full object. |
 | `delete_adaptive({ id })` | Permanent delete. |

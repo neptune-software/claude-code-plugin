@@ -11,7 +11,7 @@ A **process flow** (older name: workflow; `workflow` table, edited in the Cockpi
 
 | Tool | Purpose |
 |---|---|
-| `list_processflows` | All flow definitions. |
+| `list_processflows` | Flow definitions. Supports `listOptions` (`where`/`select`/`take`/`skip`/`order`) to filter, project, and sort by field. |
 | `get_processflow({ id })` | One definition: `graph`, `interface`, `testdata`. Returns `{ data, validation }`. |
 | `save_processflow({ processFlow })` | Create (no `id`) or update (with `id`). Returns `{ data, validation }`. |
 | `delete_processflow({ id })` | Delete. Refused with a conflict if executions are still running. |
@@ -55,7 +55,7 @@ Node ids follow BPMN convention and are referenced by edges, execution logs, and
 
 | `type` | Required in `data` | Notes |
 |---|---|---|
-| `start` | — | Optional `context`. The run payload lands here; see "Getting data in". Exactly one per flow. |
+| `start` | — | Exactly one per flow. |
 | `end` | — | Exactly one per flow. |
 | `runScript` | `scriptId` | A server script id. The script's output is the node's output — see "Data between nodes". |
 | `tableInteraction` | `tableDefinition`, `selectedOperation` | Reads/writes a table through its API artifact. See below. |
@@ -130,9 +130,8 @@ Conditions live on the **gateway node**, and each is bound to an edge by the han
 {
     "id": "<condition uuid>",
     "label": "Reorder needed",
-    "isExpression": true,
     "expression": "{= ${Outputs>/Activity_7k2m9x1/lineCount} > 0}",
-    "builderData": [ ... ]
+    "isDefault": false
 }
 ```
 
@@ -144,9 +143,9 @@ Conditions live on the **gateway node**, and each is bound to an edge by the han
 | `${InterfaceData>/<field>}` | The shared interface bag, seeded at start and writable throughout the run. |
 | `${<field>}` | The immediately preceding activity's output. Terse, but breaks the moment a node is inserted before it. |
 
-`builderData` is what the designer's visual condition builder renders. It is not used at run time — the `expression` string is the source of truth — but omitting it leaves the user with a condition they cannot edit by clicking. Write both, and keep them saying the same thing.
+`expression` is the field to author — it's the source of truth the engine reads.
 
-There is no "default branch" in the designer. Cover the remaining case with its own explicit condition (`=== 0`, `=== 'reject'`) rather than leaving a branch conditionless, or that branch is taken unconditionally.
+A condition can also be marked `isDefault: true` — the gateway's fallback branch, exempt from needing an `expression` at all. Prefer it over hand-writing an inverse condition (`=== 0`, `=== 'reject'`) to cover the remaining case.
 
 An **exclusive** gateway takes only the first condition that evaluates true, in the order the conditions appear in the array — so order them deliberately. An **inclusive** gateway takes all of them. A **merge** is an inclusive join: it waits for the branches that are actually active, so a flow where only one of two branches ran still reaches the end.
 
@@ -258,6 +257,7 @@ Fields the canvas maintains for itself appear here too, and you do not author th
 
 - **Author the graph, then read `validation.errors` back.** Save will happily persist a broken flow.
 - **Gateway edges must carry the condition id as `sourceHandle`.** Covered above; it is the defect you will hit first.
+- **Only `isDefault: true` lets a condition skip having an expression.** An ordinary condition left with an empty `expression` fails validation — it does not silently become the fallback branch.
 - **Script nodes must write `result.data`.** `result = {...}` yields nothing downstream.
 - **A node's `data.executionStatus` is runtime state.** It comes back on `get_processflow_execution`; never author it into a saved graph.
 - **Ids referenced across artifacts are uuids** — `scriptId`, `agentId`, `templateId`, `tableDefinition.id`, approver roles and users. Look them up with the matching skill's list tool rather than guessing.

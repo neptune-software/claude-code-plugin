@@ -53,7 +53,7 @@ save_webapp({ "webapp": {
 
 | Tool | Behavior |
 |---|---|
-| `list_webapps` | Every web app: id, name, type, description, ver, package, audit fields. Accepts `listOptions` (`where` with `ILike`, `select`, `order`, `take`) — the only way to look one up by name. |
+| `list_webapps` | Web apps. Supports `listOptions` (`where`/`select`/`take`/`skip`/`order`) to filter, project, and sort by field — the only way to look one up by name. |
 | `get_webapp({ id })` | The record plus `runtime` (`id`, `page`, `name`, `publicAccess`) and `assets[]` carrying **`path`, `createdAt`, `updatedAt` only — never `source`**. By id only. The timestamps say when a file was last written, not what it contains — re-uploading an old build stamps fresh dates. |
 | `save_webapp({ webapp })` | Create (no `id`) or update (with `id`). Returns the saved record; assets that were written echo back with their `source`. |
 | `delete_webapp({ id })` | Permanent, no undo; removes the app and all its files. Returns `Successfully deleted WebApp`. |
