@@ -24,7 +24,7 @@ Everything in DXP is a row in a typed table. The MCP tools in this plugin expose
 | **Server script** | script metadata | A JS/TS function executed server-side, in Node.js, on an API request. Accesses `req` (request context) and writes to `result`. |
 | **API** | `api` | The route/binding artifact. Can proxy to an upstream URL, expose a server script over HTTP, or wrap a table for CRUD. Enforces role gating. See the `manage-apis` skill. |
 | **Table / dictionary** | dictionary metadata | Schema definitions managed via Table Designer. Server scripts read/write via TypeORM. |
-| **Workflow** | workflow | Visual process model built in Workflow Editor. Tasks include script tasks (call server scripts), user tasks, etc. |
+| **Process flow** | `workflow` | Visual process model built in the Process Flow Designer. Steps call server scripts, read/write tables, send email, ask an AI agent, or wait on a human approval. Its behaviour lives in one graph JSON. See the `manage-process-flows` skill. |
 | **Adaptive app** | adaptive metadata | No-code data-driven app built in Adaptive Designer from a table or server-script data source, configured via templates. |
 | **PDF template** | pdf metadata | Drag-and-drop PDF layout built in PDF Designer, populated by server scripts or APIs at generation time. |
 | **Launchpad** | launchpad metadata | A tile/role configuration mapping users → apps. The runtime end-user surface. |
@@ -38,7 +38,7 @@ The typical chain for a user action in a deployed app:
 2. The call hits an **API** artifact, which gates by role and routes one of three ways: proxy to an upstream URL, invoke a **server script**, or read/write a **table**.
 3. The **server script** runs in Node.js with `req` populated from the request and `req.p9.api` / `req.p9.operation` populated by the API route (these are NOT populated when running via the `run_server_script` MCP tool — see that skill).
 4. The script puts its output on `result` (data, statusCode, contentType, etc.) and the runtime serializes it back.
-5. Workflows are orchestrated separately and can invoke server scripts as script-task steps.
+5. Process flows are orchestrated separately and can invoke server scripts, table APIs and AI agents as steps, branching between them on conditions.
 
 A server script not always a free-floating module — it's an artifact bound to one or more API operations. To wire a new endpoint: create/extend an API (`apiType: "script"`), add a path, point the path's `serverScript` field at the script's id. The `manage-apis` skill covers the API side; `run-server-script` covers direct invocation.
 
@@ -66,6 +66,7 @@ These are the differences that bite people who assume "it's just Node":
 | Cockpit | Developer workspace |
 | Launchpad | End-user runtime surface |
 | Planet9 | Internal name for the Open Edition runtime |
+| Process flow / Workflow | Orchestration artifact (`workflow` table). "Workflow" is the older name for the same thing |
 | Adaptive | The no-code app framework, distinct from App Designer |
 | Adaptive Designer | The Cockpit tool for building Adaptive apps |
 | Table Designer | Schema/dictionary editor |
@@ -85,6 +86,7 @@ Each major artifact segment has its own skill. Invoke the matching one when the 
 - **`run-server-script`** — execute a server script directly by id via MCP.
 - **`manage-apis`** — create/update/inspect API artifacts via MCP.
 - **`manage-tables`** — table definitions (dictionary) and reading rows.
+- **`manage-process-flows`** — process flows: the graph, gateways, approvals, executions.
 - **`manage-adaptive`** — Adaptive Framework data-driven entities.
 - **`manage-npm-modules`** — install/manage third-party packages exposed as `modules.*`.
 - **`inspect-system-logs`** — read the daily server/exception/script/request/vault logs.
@@ -103,6 +105,7 @@ Before using or interpreting the result of an MCP tool, load the skill that docu
 | `run_server_script` | `run-server-script` |
 | `list_adaptive`, `get_adaptive`, `save_adaptive`, `delete_adaptive` | `manage-adaptive` |
 | `list_tables`, `get_table`, `save_table`, `delete_table`, `query_entity_table` | `manage-tables` |
+| `list_processflows`, `get_processflow`, `save_processflow`, `delete_processflow`, `run_processflow`, `list_processflow_executions`, `get_processflow_execution`, `stop_processflow_execution`, `list_assigned_processflow_user_tasks`, `get_processflow_user_task`, `continue_processflow_user_task` | `manage-process-flows` |
 | `list_packages`, `get_package`, `save_package`, `delete_package` | `dxp-overview` |
 | `list_system_logs`, `get_system_log` | `inspect-system-logs` |
 | `list_npm_modules`, `get_npm_module`, `install_npm_module`, `uninstall_npm_module` | `manage-npm-modules` |
