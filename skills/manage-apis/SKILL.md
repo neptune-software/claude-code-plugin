@@ -23,7 +23,7 @@ An API artifact is a configuration record managed by the platform. Depending on 
 
 | Tool | Behavior (verified) |
 |---|---|
-| `list_apis` | Flat summaries: id, name, description, endpoint, apiType, version, apiGroup, package, createdBy/changedBy, createdAt/updatedAt, enableProxy, enableTrace. No paths/definitions (payload-size guard). |
+| `list_apis` | API summaries. Supports `listOptions` (`where`/`select`/`take`/`skip`/`order`) to filter, project, and sort by field. |
 | `get_api({ id })` | Envelope `{ api, apps: {children}, scripts: {children}, webapps: {children} }`. The artifact is under `.api` (paths, definitions, auth, endpoints, documentation, and `roles`). The three siblings are **where-used**: apps, server scripts, and web apps consuming this API. Id only — lookup by name is not supported. |
 | `save_api({ api })` | Create (no `id`) or update (with `id`). Returns the **full saved artifact** — use it to verify instead of an extra `get_api` (it lacks `roles`/where-used, which only `get_api` returns). |
 | `delete_api({ id })` | Permanent, no undo; also deletes the API's trace records. **Returns "deleted" even for nonexistent ids** (verified) — success is not proof the id existed. |

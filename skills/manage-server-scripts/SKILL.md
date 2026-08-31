@@ -13,14 +13,14 @@ Read the `dxp-overview` skill first for the platform rules that make server scri
 
 | Tool | Purpose |
 |---|---|
-| `list_script_projects` | All projects with their nested scripts. The main browse entry point. |
+| `list_script_projects` | Projects with their nested scripts. Supports `listOptions` (`where`/`select`/`take`/`skip`/`order`) to filter, project, and sort by field. |
 | `get_script_project({ id })` | One project and its scripts. |
 | `create_script_project({ name, description?, package? })` | New empty project to group scripts. |
 | `delete_script_project({ id })` | Delete a project. |
 | `get_server_script({ id })` | One script **including its source `content`**. |
 | `save_server_script({ id?, name, content, projectId?, language?, description?, apis?, entitySets?, agents?, globalScripts?, externalModules? })` | Create (no `id`) or update (with `id`). |
 | `delete_server_script({ id, projectId? })` | Delete a script (pass `projectId` to bump the project version). |
-| `list_ungrouped_scripts` | Scripts not assigned to any project. |
+| `list_ungrouped_scripts` | Scripts not assigned to any project. Supports `listOptions` (`where`/`select`/`take`/`skip`/`order`) to filter, project, and sort by field. |
 
 ## Saving a script
 

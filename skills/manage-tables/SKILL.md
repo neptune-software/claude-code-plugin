@@ -18,7 +18,7 @@ These tools are for **external** (data) tables — the application's own tables,
 
 | Tool | Purpose |
 |---|---|
-| `list_tables` | All table definitions. |
+| `list_tables` | Table definitions. Supports `listOptions` (`where`/`select`/`take`/`skip`/`order`) to filter, project, and sort by field. |
 | `get_table({ id })` | One definition: fields, indices, foreign keys. |
 | `save_table({ table })` | Create (no `id`) or update (with `id`) a definition. **Runs DDL** against the database. |
 | `delete_table({ id })` | Drop the table definition. |

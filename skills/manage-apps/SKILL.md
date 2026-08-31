@@ -13,7 +13,7 @@ An App Designer application is a UI5/OpenUI5 UI built in the Cockpit's App Desig
 
 | Tool | Purpose |
 |---|---|
-| `list_apps` | All apps with id/name/description/type. No nested component tree. |
+| `list_apps` | Apps. Supports `listOptions` (`where`/`select`/`take`/`skip`/`order`) to filter, project, and sort by field. |
 | `get_app({ id })` | Full design-time record: components, data models, resources, event handlers, title, status. Can be large. |
 | `save_app({ app })` | Create (no `id`) or update (with `id`). Writes the design-time `app` table only. |
 | `activate_app({ id })` | Push design-time → runtime, regenerate `ver`, compile CSS. Required to make edits live. |

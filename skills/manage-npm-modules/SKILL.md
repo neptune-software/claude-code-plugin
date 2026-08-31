@@ -11,7 +11,7 @@ Server scripts in Neptune DXP do **not** use `require()` or `import`. Third-part
 
 | Tool | Purpose |
 |---|---|
-| `list_npm_modules` | All registered modules: id, `contextName` (the `modules.*`/require name), version, description, path, `isLocal`. |
+| `list_npm_modules` | Registered modules. Supports `listOptions` (`where`/`select`/`take`/`skip`/`order`) to filter, project, and sort by field. |
 | `get_npm_module({ id })` | One module **plus the scripts and AI agents that reference it** — your impact check before uninstalling. |
 | `install_npm_module({ name, version?, description?, installParameters? })` | Run `npm install`, verify the module loads, register it so scripts can use it. |
 | `uninstall_npm_module({ id })` | Run `npm uninstall` and remove the record. |
