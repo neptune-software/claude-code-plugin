@@ -3,7 +3,7 @@
         "neptune-dxp": {
             "type": "http",
             "url": "${user_config.serverUrl}/mcp",
-            "alwaysLoad": true
+            "alwaysLoad": false
         }
     }
 }
