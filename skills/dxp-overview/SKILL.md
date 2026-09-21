@@ -79,7 +79,7 @@ These are the differences that bite people who assume "it's just Node":
 | Package | Transport/bundle container (`dev_package` table). Artifacts join a package by setting their own `package` field to its id — the package doesn't list its members. MCP tools: `list_packages`, `get_package` (returns members bucketed by type), `save_package` (only `name` is required), `delete_package` (clears members' `package` link, doesn't delete them). |
 | Naia Agent Studio | The Cockpit tile group holding Models, Agents, AI Tools, Guardrails and Agent Trace |
 | Agent Trace | Cockpit tool showing every agent request, its tool calls and guardrail outcomes (not readable over MCP) |
-| Agentic Apps | Launchpad feature where an agent flagged for it acts on and explains the apps on the user's screen |
+| Agentic Apps | An agent flagged for it (*Enable use with Agentic Apps*) reads, operates and explains the App Designer app on the user's screen — from a launchpad (agent selected on its Agent tab) or a standalone app with a Chatbox. Apps are agentic by default (*Disable Agentic Apps* opts out); developers coach the agent with the app description, `AGENTS.md` files and custom tools. See `agentic-apps` |
 
 ## Related skills
 
@@ -97,6 +97,7 @@ Each major artifact segment has its own skill. Invoke the matching one when the 
 - **`manage-ai-models`** — register the external AI models agents run on (completion and embedding).
 - **`manage-ai-tools`** — Script / API / Web Search / Table / Email / PDF / Chart capabilities for agents.
 - **`manage-ai-agents`** — build chat, structured-output and Agentic Apps agents: instructions, model, tools, guardrails, roles.
+- **`agentic-apps`** — make an App Designer app work well with Agentic Apps: the app description the launchpad agent routes on, `AGENTS.md` files, custom tools (`neptune.ia.registerTools`), opt-out and denylist.
 - **`manage-npm-modules`** — install/manage third-party packages exposed as `modules.*`.
 - **`inspect-system-logs`** — read the daily server/exception/script/request/vault logs.
 - **`connection`** — inspect, connect, switch, and troubleshoot the connection to an instance.
@@ -121,6 +122,7 @@ Before using or interpreting the result of an MCP tool, load the skill that docu
 | `list_ai_models`, `get_ai_model`, `save_ai_model`, `delete_ai_model`, `list_ai_vendor_settings` | `manage-ai-models` |
 | `list_ai_tools`, `get_ai_tool`, `save_ai_tool`, `delete_ai_tool` | `manage-ai-tools` |
 | `list_ai_agents`, `get_ai_agent`, `save_ai_agent`, `delete_ai_agent` | `manage-ai-agents` |
+| `get_app`, `save_app`, `activate_app` when the task is an `AGENTS.md` file, a custom tool, the app description for the agent, the Agentic Apps opt-out or the denylist | `agentic-apps` (after `manage-apps`) |
 
 Do not infer Neptune DXP behavior from MCP field names alone. Load the matching skill first, then use the tool or interpret results from the tool call.
 
