@@ -72,7 +72,7 @@ The warnings print to the browser console whether or not `?iaDebug=true` is set.
   **by WebMCP** with an empty `task`. The provider must only build the list. Anything it changes will
   change on a question.
 - **Only the active view's providers are asked**, so anchor the tools on the app: pass its root control
-  itself, `neptune.ia.registerTools(<RootControl>, …)`. The platform resolves it to the app's view, in
+  itself, `neptune.ia?.registerTools(<RootControl>, …)`. The platform resolves it to the app's view, in
   a launchpad and on a standalone page alike. An id string is also accepted, `localViewID` included, so
   older scripts keep working, but a local id such as `'App'` can name a different control inside a
   launchpad; the control is the form that cannot be got wrong. Do not anchor on an inner control: its
@@ -80,7 +80,7 @@ The warnings print to the browser console whether or not `?iaDebug=true` is set.
   `?iaDebug=true` shows `custom tools collected { registered: [...], active: [], offered: [] }`.
 - **`neptune.ia` can be absent.** The Agentic Apps runtime is only loaded on a page that is agentic:
   a standalone app with "Disable Agentic Apps" ticked, or a launchpad without an Agentic Apps agent,
-  has no `neptune.ia`, and a bare call throws while the app loads. Guard it.
+  has no `neptune.ia`, and a call without `?.` throws while the app loads.
 - **App scripts run after the controls are constructed**, so registering from a script works without
   polling or timers.
 - Async `execute` is awaited; the whole iteration has a 60 s budget. Keep it fast.
@@ -105,23 +105,26 @@ The warnings print to the browser console whether or not `?iaDebug=true` is set.
 
 ## Writing rules
 
-1. **Description says what it returns and when to call it**, in one or two sentences.
+1. **Description says what it returns and when to use it**: "Returns X. Use this whenever the user asks Y."
 2. **Every parameter has a `description`** and an explicit `required` boolean.
-3. **`message` is text the model can act on.** For structured data, `JSON.stringify` a small object.
-   Cap at about 2,000 characters and say when the list was cut ("10 of 43 matches").
-4. **Failures instruct the next step.** "No delivery 4711. Ask the user to check the number." beats "not found".
-5. **Never throw out of `execute`.** Wrap the body in try/catch and return a failure with the error text.
-   Missing data is missing, not zero: `Number(null)` is `0`, so exclude rows without the figure and say
-   how many you excluded.
-6. **The provider is pure.** Read the snapshot, build the array, return. No navigation, no model writes.
-7. **A tool that writes is a consequential action.** Name it in the AGENTS.md stop-point rule so the
+3. **`message` is a string the model can act on.** Structured data goes through `JSON.stringify`: an
+   object in `message` makes the platform replace the result with a failure. Return only the fields the
+   agent needs, at most about 10 rows, and the total, so it can say "10 of 43"; the platform applies no
+   length cap and re-sends results on every later iteration.
+4. **Expected failures instruct the next step.** "No delivery 4711. Ask the user to check the number."
+   beats "not found". Unexpected errors need no try/catch: a throw already comes back to the agent as a
+   failed result. Missing data is missing, not zero: `Number(null)` is `0`, so exclude rows without the
+   figure and say how many you excluded.
+5. **The provider is pure.** Read the snapshot, build the array, return. No navigation, no model writes.
+6. **A tool that writes is a consequential action.** Name it in the AGENTS.md stop-point rule so the
    agent confirms before calling it, exactly like a submit button.
-8. **Anchor on the app's root control itself**: `neptune.ia.registerTools(<RootControl>, …)`. Not an
-   inner control, and not a bare `localViewID`, which is undeclared on a standalone page.
-9. **One script object, IIFE-wrapped, nothing at column 0.** App scripts share one scope; a top-level
-   `const` that another script also declares throws a redeclaration error for the whole app.
-10. **Return `{ toolId, success, message }`.** The platform only needs `success`, but the App Designer
-    typing declares `toolId` as required, and the docs sample returns it.
+7. **`neptune.ia?.registerTools(<RootControl>, …)`**: the `?.` keeps the app loading where the runtime is
+   absent; the root control is the anchor, never an inner control or a bare `localViewID`.
+8. **Declare nothing at the top level.** App scripts share one scope, so a top-level `const`, `let` or
+   `function` that another script also declares throws for the whole app. Put helpers inside the
+   provider, or wrap the script in `(() => { … })();`.
+9. **Return `{ toolId, success, message }`.** The platform only needs `success`, but the App Designer
+   typing declares `toolId` as required, and the docs sample returns it.
 
 ## Template
 
@@ -129,80 +132,45 @@ Replace `<RootControl>` with the root control's name from the tree listing, and 
 angle brackets with the real names and data reads.
 
 ```js
-/* Agentic Apps custom tools for <application>
-   Object: neptune.Script "AgenticTools" under the Scripts root. Delete this one object to remove them.
-   - the provider runs on EVERY agent iteration, on explain turns and for WebMCP: build the list, change nothing
-   - a tool is { name, description, parameters?, execute }; execute returns { toolId, success, message }
-   - parameter types: string | number | boolean | date | array (items primitive); no object, no enum
-*/
-(() => {
-    if (typeof neptune === 'undefined' || !neptune.ia || typeof neptune.ia.registerTools !== 'function') {
-        return; // the Agentic Apps runtime is not on this page (app opted out, or a launchpad without an agent)
-    }
-    const asText = (v) => {
-        const s = typeof v === 'string' ? v : JSON.stringify(v);
-        return s.length > 2000 ? s.slice(0, 2000) + ' ...[truncated]' : s;
-    };
-    const ok = (toolId, message) => ({ toolId, success: true, message: asText(message) });
-    const fail = (toolId, message) => ({ toolId, success: false, message: asText(message) });
-    const popupOpen = (snapshot, name) =>
-        (snapshot?.openPopups || []).some((p) => p.id === name || String(p.id).endsWith('--' + name));
-
-    // Anchor on the app's root control: resolved to the app's view in a launchpad and standalone alike.
-    neptune.ia.registerTools(<RootControl>, ({ snapshot }) => {
-        const tools = [
-            {
-                name: '<toolName>',
-                description: '<Returns X. Use this whenever the user asks Y, a question the screen cannot answer.>',
-                parameters: [
-                    { name: 'query', type: 'string', required: true, description: '<What the user said, e.g. "pump 12">' },
-                ],
-                execute: (args) => {
-                    try {
-                        const query = String(args?.query ?? '').trim();
-                        if (!query) return fail('<toolName>', 'query is required. Ask the user what to look for.');
-                        const rows = <modelName>.getProperty('/rows') || [];
-                        const hits = rows
-                            .filter((r) => JSON.stringify(r).toLowerCase().includes(query.toLowerCase()))
-                            .slice(0, 10);
-                        if (!hits.length) return fail('<toolName>', `Nothing matches "${query}". Ask the user for the exact number.`);
-                        return ok('<toolName>', { count: hits.length, hits });
-                    } catch (e) {
-                        return fail('<toolName>', `<toolName> failed: ${e?.message ?? e}`);
-                    }
-                },
-            },
-        ];
-
-        // A tool that only makes sense while a dialog is open: gate on the snapshot the platform hands you.
-        if (popupOpen(snapshot, '<DialogName>')) {
-            tools.push({
-                name: '<dialogToolName>',
-                description: '<Summarise the record shown in the open dialog. Only offered while that dialog is open.>',
-                execute: () => {
-                    try {
-                        return ok('<dialogToolName>', { /* read the dialog's data here */ });
-                    } catch (e) {
-                        return fail('<dialogToolName>', `<dialogToolName> failed: ${e?.message ?? e}`);
-                    }
-                },
-            });
-        }
-        return tools;
-    });
-})();
+// Agentic Apps custom tools for <application>. Object: neptune.Script "AgenticTools" under the
+// Scripts root; delete this one object to remove them.
+neptune.ia?.registerTools(<RootControl>, () => [
+    {
+        name: '<toolName>',
+        description: '<Returns X. Use this whenever the user asks Y, a question the screen cannot answer.>',
+        parameters: [
+            { name: 'query', type: 'string', required: true, description: '<What the user said, e.g. "pump 12">' },
+        ],
+        execute: (args) => {
+            const query = String(args.query ?? '').trim().toLowerCase();
+            const rows = <modelName>.getProperty('/rows') || [];
+            const hits = rows.filter((row) => JSON.stringify(row).toLowerCase().includes(query));
+            if (!hits.length) {
+                return {
+                    toolId: '<toolName>',
+                    success: false,
+                    message: `Nothing matches "${query}". Ask the user for the exact number.`,
+                };
+            }
+            return {
+                toolId: '<toolName>',
+                success: true,
+                message: JSON.stringify({ total: hits.length, first10: hits.slice(0, 10) }),
+            };
+        },
+    },
+]);
 ```
 
-The docs sample (`neptune.ia?.registerTools(localViewID, ({ snapshot }) => …)`) already guards a
-missing `neptune.ia` with `?.`. This template differs in the four ways a production script needs: it
-anchors on the root control, so one script works inside a launchpad and on a standalone page (a bare
-`localViewID` is undeclared on a standalone page and throws before the call); every `execute` is in
-try/catch; failures tell the agent what to do next; `message` is capped. An existing script that
-passes `localViewID` or an id string keeps working inside a launchpad.
+This is the docs sample's shape with one difference: the docs anchor on `localViewID`, which exists
+only inside a launchpad view and throws on a standalone page; the root control works in both. An
+existing script that passes `localViewID` or an id string keeps working inside a launchpad.
 
-**Popup ids.** `openPopups[].id` is the App Designer name inside a launchpad view (`DialogOrder`) and
-the raw runtime id on a standalone page; on a collision the platform appends `#2`. Match exact-or-suffix
-as in `popupOpen` above; a bare `endsWith('Dialog')` also matches `otherDialog`.
+**A tool only while a dialog is open.** The provider receives `{ snapshot }`; return the extra tool only
+when `snapshot.openPopups` contains the dialog, as the docs sample does. Match the id exactly or by the
+suffix `'--' + name`: `openPopups[].id` is the App Designer name inside a launchpad view
+(`DialogOrder`) and the raw runtime id on a standalone page, the platform appends `#2` on a collision,
+and a bare `endsWith('Dialog')` also matches `otherDialog`.
 
 **Placement.** A `neptune.Script` object named `AgenticTools` under the Scripts root (`fieldParent`
 `99999`). Never edit the customer's `GlobalFunctions`: one object to add, one object to delete, no risk
@@ -211,20 +179,19 @@ body can read them directly (`modelDeliveries.getProperty('/ITEMS')`, `TableOrde
 
 ## Check before saving
 
-Read the finished script once, top to bottom, against this list. A script that fails the first three
-items fails to load for every user of the app; the rest decide whether the agent can use the tools.
+Read the finished script once, top to bottom, against this list. A script that fails item 1 breaks the
+app for every user; the rest decide whether the agent can use the tools.
 
-1. The file is one expression: it starts with `(() => {` and ends with `})();`. Nothing is declared at
-   column 0.
-2. The first statement inside returns when `neptune` is undefined or `neptune.ia` is missing.
-3. `registerTools` is anchored on `<RootControl>`, replaced with the app's real root control name from
-   the tree listing: not an inner control, and no bare `localViewID`.
-4. Every tool name uses letters, digits, `_` and `-` only, is at most 57 characters, and is unique.
-5. Every description says what the tool returns and when to call it; none says "every turn".
-6. Every parameter has a `type` from `string | number | boolean | date | array`, `required` written as
+1. The call is `neptune.ia?.registerTools(…)`, with `?.`, and nothing is declared at the top level.
+2. The anchor is `<RootControl>` replaced with the app's real root control name from the tree listing:
+   not an inner control, and no bare `localViewID`.
+3. Every tool name uses letters, digits, `_` and `-` only, is at most 57 characters, and is unique.
+4. Every description says what the tool returns and when to use it; none says "every turn".
+5. Every parameter has a `type` from `string | number | boolean | date | array`, `required` written as
    `true` or `false`, and a `description`.
-7. Every `execute` body is inside try/catch and every return path yields `{ toolId, success, message }`
-   with `message` a string (structured data through `JSON.stringify`, capped).
+6. Every return path yields `{ toolId, success, message }` with `message` a string: structured data
+   through `JSON.stringify`, only the fields needed, at most about 10 rows, with the total.
+7. Every expected failure (nothing found, not allowed) returns `success: false` and the next step.
 8. Every model or control the tools read exists in the app under that exact name.
 9. Walk each `execute` once with one row that has a missing figure: it must be excluded and reported,
    not treated as zero.
