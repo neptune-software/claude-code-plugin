@@ -37,10 +37,9 @@ Each one is verified on a running 25.0 instance; the reference files carry the d
 4. **Stop points bind; values do not.** Write "ask for X", never "use X". Routing words belong in the
    description, not in a file.
 5. **Never `${…}`, `{{…}}` or a level-1 `#` heading** in a file. Use `##`.
-6. **Guard `neptune.ia`.** It is absent when the app opted out or the launchpad has no Agentic Apps
-   agent, and an unguarded call throws while the app loads: `neptune.ia?.registerTools(…)` as in the
-   docs, or an explicit check.
-7. **Anchor the tools on the app's root control itself**: `neptune.ia.registerTools(<RootControl>, …)`.
+6. **Call `neptune.ia?.registerTools(…)`, with `?.`.** `neptune.ia` is absent when the app opted out or
+   the launchpad has no Agentic Apps agent, and a call without `?.` throws while the app loads.
+7. **Anchor the tools on the app's root control itself**: `neptune.ia?.registerTools(<RootControl>, …)`.
    Not an inner control, and never a bare `localViewID`, which throws on a standalone page. A wrong
    anchor is silent: registered, never offered.
 8. **Keep the tool contract** in `reference/custom-tools.md`. Anything outside it is dropped or
