@@ -1,19 +1,9 @@
 # AGENTS.md files: mechanics, what the agent does with them, and how to write them
 
-Verified against a running Neptune DXP - Open Edition 25.0 instance. Official wording: the docs page
-"Agentic Apps" under AI agents, section "Describe an app with AGENTS.md files".
-
-## What the docs promise
-
-> An `AGENTS.md` file gives the agent context about an app in plain language: what the app is for and
-> when to use it, what specific fields, buttons, drop-down lists, and filters do, and the business
-> context behind them. […] `AGENTS.md` files are additive. […] Place a file next to the part of the app
-> it describes, and add as many as you need. […] Use `AGENTS.md` to shape how the agent behaves, not
-> only to describe the app. For example, instruct the agent not to guess and to ask for any detail it
-> does not have. […] Keep the guidance concise and specific, and write it as instructions to follow.
-> Prefer a scoped file placed next to the relevant part of the app over one large app-level file.
-
-Everything below is the behaviour the docs leave out.
+Verified against a running Neptune DXP - Open Edition 25.0 instance. The docs page "Agentic Apps"
+(section "Describe an app with AGENTS.md files") says what the files are for, that they are additive,
+and that each is scoped to the part of the app it sits next to. Everything below is the behaviour the
+docs leave out.
 
 ## Mechanics
 
@@ -73,6 +63,9 @@ they carry rules of their own. Single-page apps often need only the app-wide fil
 
 ## Budgets
 
+These are this skill's budgets, not platform limits: the platform only warns, above 8,000 characters
+of global text.
+
 | File | Budget | Why |
 |---|---|---|
 | App-wide | up to 3,000 chars | sent on every iteration of every turn |
@@ -120,9 +113,20 @@ control has a good name. No marketing, no "the AI".
 - What the agent can already see (every label, every button that is obviously a button).
 - Repetition of the app-wide file inside page files.
 - "Call `<tool>` every turn."
-- Anything with `${` or `{{`, and level-1 headings.
 
-## Worked example: a returns app on a 25.0 instance (deployed, six files)
+## Check a file
+
+Walk every file against this list before it goes into the payload (the skill's step 4):
+
+1. Object name exactly `AGENTS.md`; content not empty.
+2. Parent is a UI control: not the Files group, not a folder under it, not a model.
+3. One file per anchor; an existing file under that anchor is updated, not doubled.
+4. A scoped file opens by naming its screen, and repeats nothing from the app-wide file.
+5. Within budget.
+6. No `${`, no `{{`, no line starting with `# `.
+7. Rules are instructions ("ask for X"), never values ("use X"), and no routing sentences.
+
+## Worked example: a returns app on a 25.0 instance (four of its six files, abridged)
 
 App-wide, under the root control `App` (abridged):
 
@@ -190,25 +194,8 @@ inspection for <item> to <worker>. Confirm?" and press Confirm only on an explic
 report both writes; if the app acknowledged only one, say exactly that.
 ```
 
-## From interview answers to files
+## Verify
 
-| Question answered | Goes into |
-|---|---|
-| Who uses it, for what job | app-wide § who and what, and the description |
-| Which buttons write | app-wide § stop points; a dialog file per dialog that writes |
-| What the screen does not show | app-wide § rules; candidate custom tools |
-| Sharp edges | the page file of the screen that has the control |
-| Screens with rules of their own | one page or panel file each |
-| Reply language and tone | app-wide § how to talk (the agent replies in the UI language by default) |
-
-## Verify in the browser
-
-1. Open the app with `?iaDebug=true` (before the URL hash) and send one request to the agent.
-2. The console shows an `app instructions` line when app-wide or global text reached the agent, and
-   the effective prompt size grows by the text size.
-3. `neptune.ia.getAgentFiles()` in the console lists `{ content, path }` for the files of the views on
-   screen; `path` is the anchor chain (`""` = global).
-4. Navigate to a page with its own file and send a request that trips one of its rules; go back and
-   confirm the rule no longer applies.
-5. Agent Trace in the Cockpit, Triggered From = `agentic-apps`: one row per iteration, with the
-   prompt the agent actually received.
+The developer's checklist is the skill's step 7. Specific to files: `neptune.ia.getAgentFiles()` lists
+`{ content, path }` for the views on screen, `path` being the anchor chain (`""` = global), and Agent
+Trace shows the joined text the agent actually received.

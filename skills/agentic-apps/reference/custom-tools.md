@@ -47,7 +47,7 @@ result { toolId: string, success: boolean, message?: string, verified?: boolean,
 ```
 
 No `object` parameter type, no `enum`, no nested schema. `array` items are primitives. There is no
-unregister; registering again under the same key replaces the provider.
+unregister; registering again under the same anchor replaces the provider.
 
 ## What the platform drops or replaces
 
@@ -84,9 +84,9 @@ The warnings print to the browser console whether or not `?iaDebug=true` is set.
 - **App scripts run after the controls are constructed**, so registering from a script works without
   polling or timers.
 - Async `execute` is awaited; the whole iteration has a 60 s budget. Keep it fast.
-- The model sees `success`, `message` and `verified` of the result; `toolId` is not shown and
-  `metadata` only for the last turn. **No length cap is applied to `message`**, and results are
-  re-sent in later iterations, so cap it yourself.
+- The model sees `success`, `message` and `verified`. `toolId` is never shown, and `metadata` reaches
+  it only for the most recent result, so everything the agent must read goes in `message`. **No length
+  cap is applied to it**, and results are re-sent in later iterations, so cap it yourself.
 - A `success: false` keeps the agent working, which is what you want when the failure message tells it
   what to do next. The agent cannot declare the task finished in the same step as a failed result.
 
@@ -193,11 +193,12 @@ angle brackets with the real names and data reads.
 })();
 ```
 
-This keeps the shape of the official sample (`neptune.ia.registerTools(rootControl, (context) => …)`)
-and adds what a production script needs on top: the `neptune.ia` guard, a try/catch in every
-`execute`, failures that tell the agent what to do next, and a capped `message`. A script written
-earlier that passes `localViewID` or an id string keeps working; one that passes `localViewID` bare
-throws on a standalone page, where it is undeclared.
+The docs sample (`neptune.ia?.registerTools(localViewID, ({ snapshot }) => …)`) already guards a
+missing `neptune.ia` with `?.`. This template differs in the four ways a production script needs: it
+anchors on the root control, so one script works inside a launchpad and on a standalone page (a bare
+`localViewID` is undeclared on a standalone page and throws before the call); every `execute` is in
+try/catch; failures tell the agent what to do next; `message` is capped. An existing script that
+passes `localViewID` or an id string keeps working inside a launchpad.
 
 **Popup ids.** `openPopups[].id` is the App Designer name inside a launchpad view (`DialogOrder`) and
 the raw runtime id on a standalone page; on a collision the platform appends `#2`. Match exact-or-suffix
@@ -230,31 +231,20 @@ items fails to load for every user of the app; the rest decide whether the agent
 10. The provider builds the array and changes nothing; a tool that writes is named as a stop point in
     the AGENTS.md rules.
 
-## Verify in the browser
+## Verify
 
-Open the app with `?iaDebug=true` (before the URL hash), ask the agent to do something on the app, and
-read the console:
-
-- `custom tools collected { registered: ['custom-findDelivery', …], active: [...], offered: [...] }`:
-  `registered` full and `active` empty is the wrong-anchor case; `offered: []` on a question is normal
-  (explain turns withhold custom tools).
-- `tools offered` lists exactly what the model was sent in that iteration, and
-  `neptune.ia.getOfferedTools()` returns the same list under `?iaDebug=true`.
-- `custom tool skipped` names a validation failure and its reason.
-- In Agent Trace (Cockpit), filter Triggered From = `agentic-apps` to see the tool call and its result.
+The developer's checklist is the skill's step 7. The console lines that matter for tools, under
+`?iaDebug=true`: `custom tools collected { registered, active, offered }` (`offered: []` on a question
+is normal, explain turns withhold custom tools), `tools offered` (also `neptune.ia.getOfferedTools()`),
+and `custom tool skipped` with its reason. Agent Trace, Triggered From = `agentic-apps`, shows each
+call and its result.
 
 ## When the agent ignores a tool
 
-"The agent won't use my tool" is two different faults with opposite fixes. Settle which one it is
-before changing anything:
-
-| What the trace shows | Fault | Fix |
-|---|---|---|
-| The tool (`custom-<name>`) is in the offered list, and the agent never calls it | Description or instructions | Say plainly when to use it ("Use this whenever the user asks which…"), and name it in an AGENTS.md rule. The registration is fine |
-| `registered` lists the anchor, `active` is empty | Wrong anchor | See "Only the active view's providers are asked" above |
-| `active` lists the anchor, `offered` is empty | The provider returned no tools for that state | Correct if the tools are gated on the snapshot; a bug if they are not |
-| No `custom tools collected` line at all | No provider registered | The script did not run or returned early: check the `neptune.ia` guard and the object's placement |
-| A `custom tool skipped` warn names it | Malformed tool | Fix what the warn names |
+Two faults with opposite fixes, and the console settles which one you have. **Offered but never
+called** (`custom-<name>` is in `tools offered`): the description does not say when to use it and no
+AGENTS.md rule names it — fix the words; the registration is fine. **Never offered**: the skill's
+symptoms table maps each shape of the `custom tools collected` line to its cause.
 
 Putting a control on the denylist does **not** push the agent onto a custom tool. The denylist removes
 the control's data from what the agent sees; the tools that act on that kind of control are still
