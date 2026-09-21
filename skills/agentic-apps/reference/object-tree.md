@@ -1,10 +1,10 @@
 # The app object tree, and how to change it without breaking the app
 
-`get_app` returns the design-time app: settings fields plus `objects`, a flat array that encodes the
-App Designer tree. `save_app` replaces `objects` **whole**. The rules below are what keeps a save from
-breaking the app; the skill's step 4 walks them before anything is sent.
+`get_app` returns the design-time app: settings fields plus `objects`, the flat array that encodes the
+App Designer tree (the keys, the numeric roots and the `fieldPos` rule are in `manage-apps` § The
+object tree). `save_app` replaces `objects` **whole**. Below is only what this skill adds on top.
 
-## One object
+## An `AGENTS.md` object as the skill inserts it
 
 ```json
 {
@@ -20,15 +20,10 @@ breaking the app; the skill's step 4 walks them before anything is sent.
 }
 ```
 
-| Key | Meaning |
-|---|---|
-| `fieldNo` | The object's id, a UUID-shaped string. Unique in the app |
-| `fieldParent` | The parent's `fieldNo`, or a numeric root: `0` = the root control's parent, `99999` = Scripts (resources), `99998` = Files. Numbers, not strings |
-| `fieldPos` | Integer position, unique across the app, parents before children. Gaps are normal (deleted objects). New objects get `max + 1` |
-| `fieldType` | UI5 class (`sap.m.Page`), Neptune type (`neptune.Markdown`, `neptune.Script`, `neptune.model`, `neptune.folder`), or bootstrap/ionic types |
-| `script` | The content for Markdown, Script and other text objects; event code lives in `attributes` |
-| `attributes` | `[{ attribute, grouping: "Properties" \| "Events", value, script, translation }]`; `text`/`title`/`valueFormat` are here, so are `press` handlers |
-| `request`, `response` | Data bindings; leave as read |
+A new `fieldNo` is a fresh lowercase UUID; the anchor's `fieldNo` is copied exactly as a string;
+`fieldPos` is the highest existing value plus one. The script object uses `"fieldName": "AgenticTools"`,
+`"fieldType": "neptune.Script"` and `"fieldParent": 99999` (a number). `valueFormat`, `text`, `title`
+and `press` handlers are read from each control's `attributes`.
 
 **UI controls** (what can be an anchor) are objects whose `fieldType` starts with `sap.`, `nep.ai.`,
 `nep.bootstrap.`, `neptune.ionic.` or `com.neptune.`. Folders, models, `neptune.BarContent` and
@@ -52,24 +47,19 @@ One `AgenticTools` script: update it instead of adding another.
 - every object has `fieldNo`, `fieldName`, `fieldParent`, `fieldType`; `fieldNo` unique; `fieldPos` unique and present
 - every `fieldParent` resolves to an object or is one of `0`, `99998`, `99999`
 - one root UI control exists (the object with `fieldParent` `0`)
-- no `AGENTS.md` is empty, and none sits under the Files root, directly or through a folder
-- no `AGENTS.md` contains `${`, `{{` or a level-1 heading
 - no two script objects share a name
-- nothing else changed: the original objects are byte-identical
+- the object count is the original count plus the objects added; the original objects are byte-identical
 
-Judgment calls to read: a file not named exactly `AGENTS.md`, a file anchored to an `IconTabFilter`,
-two files on one anchor, a file over budget, a file whose anchor is on the denylist, a populated allowlist.
+The content of each file is checked separately (`agents-md.md` § Check a file). Judgment calls to
+read here: a file anchored to an `IconTabFilter`, a file whose anchor is on the denylist, a populated
+allowlist.
 
 ## The write cycle
 
-1. `get_app`: keep the complete result, it is the rollback copy.
-2. Append the new objects and set the description (skill step 4), then walk the invariants.
-3. `save_app({ app: { id, application, appType, title, description, enableMultiDevelopment, objects } })`.
-4. `activate_app({ id })`.
-5. `get_app` again and compare with what was sent.
+`save_app` → `activate_app` → `get_app` and compare (the skill's step 6).
 
-- **Payload**: `id`, `application`, `appType`, `title`, `description`, `enableMultiDevelopment` (as read)
-  and the **complete** `objects`. Other fields are merged server-side, so CSS, UI5 settings and the
+- **Payload**: `save_app({ app: { id, application, appType, title, description, enableMultiDevelopment, objects } })`,
+  every field as read except the description and the **complete** `objects`. Other fields are merged server-side, so CSS, UI5 settings and the
   package stay untouched. Sending `objects` partially deletes what is missing; omitting `objects`
   fails the save. Add `disableIntelligence` and `iaSettings` only when they changed.
 - **Locks**: the save is refused when *another* user holds the App Designer lock on the app. Your own

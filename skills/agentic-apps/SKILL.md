@@ -1,14 +1,13 @@
 ---
 name: agentic-apps
-description: Make a Neptune DXP App Designer app work well with Agentic Apps — write or review the app description the launchpad agent routes on, generate and place AGENTS.md files, register custom tools with `neptune.ia.registerTools`, set the per-app "Disable Agentic Apps" opt-out and the denylist, and verify the result — via the MCP tools `get_app`, `save_app`, `activate_app`, `list_apps`, `list_tiles`, `list_ai_agents`, `list_locks`, `get_system_info`. Use when the user says "make this app agentic", "AGENTS.md", "agent instructions for the app", "custom tool", "registerTools", "the agent can't see / doesn't know X", "the agent guessed a value", "the launchpad agent opens the wrong app", "app description for the agent", "denylist", "Disable Agentic Apps", or asks why the agent ignores an app. Read this BEFORE adding any AGENTS.md or tool script to an app — the file name, the anchor, the view key and the result shape all fail silently when wrong.
+description: Make a Neptune DXP App Designer app work well with Agentic Apps — write or review the app description the launchpad agent routes on, generate and place AGENTS.md files, register custom tools with `neptune.ia.registerTools`, set the per-app "Disable Agentic Apps" opt-out and the denylist, and verify the result — via the MCP tools `get_app`, `save_app`, `activate_app`, `list_apps`, `list_tiles`, `list_ai_agents`, `list_locks`, `get_system_info`. Use when the user says "make this app agentic", "AGENTS.md", "agent instructions for the app", "custom tool", "registerTools", "the agent can't see / doesn't know X", "the agent guessed a value", "the launchpad agent opens the wrong app", "app description for the agent", "denylist", "Disable Agentic Apps", or asks why the agent ignores an app. Read this BEFORE adding any AGENTS.md or tool script to an app — the file name, the file's anchor, the tool anchor and the result shape all fail silently when wrong.
 ---
 
 # Agentic Apps: describe, coach and equip an App Designer app
 
-Agentic Apps (Neptune DXP - Open Edition 25.0) lets an AI agent read the running app's screen, act on
-it with built-in tools, and verify the result. The agent works without any preparation. It works
-**well** when the developer supplies three layers, and this skill produces all three from an interview
-and the app definition:
+Agentic Apps (Neptune DXP - Open Edition 25.0; docs page "Agentic Apps" under AI agents) works on an
+App Designer app with no preparation. It works **well** when the developer supplies three layers; this
+skill produces all three from an interview and the app definition:
 
 | Layer | What it does | Where it lives | Read by |
 |---|---|---|---|
@@ -25,39 +24,34 @@ Terminology: say **Agentic Apps**, **AGENTS.md files**, **custom tools**, **buil
 
 ## Hard rules: what fails silently when wrong
 
-All verified against a running 25.0 instance. Details in `reference/agents-md.md`,
-`reference/custom-tools.md` and `reference/object-tree.md`.
+Each one is verified on a running 25.0 instance; the reference files carry the detail and how to see it.
 
-1. **The file is named exactly `AGENTS.md`** and its content is not empty. Any other name is ignored
-   without an error. `Agents.md` loads (the match is case-insensitive) but name it exactly anyway.
-2. **It sits in the object tree as a child of a control, never in the Files group.** Files-group
-   objects are moved out of the tree at activation; the file is never seen.
-3. **The anchor is the nearest enclosing UI control** (folders and models are skipped). Under the root
-   control = app-wide, always in scope while the app is on screen. Under a page = only while that page
-   is active. Under a dialog = only while it is open. Under an `IconTabFilter` = on every tab, so
-   anchor per-tab files to the container inside the tab.
-4. **Files concatenate general-first, specific-last, later wins, with no header naming the file.** Every
-   scoped file opens by saying which screen it is about, and never repeats the app-wide file.
-5. **Stop points bind; values do not.** The agent honours a confirmation rule or a required order even
-   when the user says "just do it". It never takes a value from the file that the user did not give.
-   Write "ask for X", not "use X". Routing words go in the description, not here.
-6. **Never `${…}`, `{{…}}` or level-1 `#` headings** inside a file (the platform interpolates the
-   prompt and uses level-1 headings as section markers). Use `##`.
-7. **Custom tools: `neptune.ia` can be absent** (app opted out, or a launchpad without an Agentic Apps
-   agent). A bare `neptune.ia.registerTools(...)` throws while the app loads. Guard it.
-8. **Anchor the tools on the app's root control itself**: `neptune.ia.registerTools(<RootControl>, …)`
-   works in a launchpad and standalone alike. Not an inner control, and never a bare `localViewID`,
-   which exists only inside a launchpad view and throws on a standalone page. A wrong anchor is silent:
-   the tools are registered and never offered.
-9. **Tool contract**: name of letters, digits, `_` and `-`, up to 57 characters, unique per app;
-   parameter types only `string | number | boolean | date | array`; `execute` returns
-   `{ toolId, success: boolean, message: string }`. Anything else is dropped or replaced by a failure.
-10. **The provider runs on every iteration, on questions and for WebMCP.** It builds the list and
-    changes nothing. Never write "call this tool every turn"; say when to call it.
-11. **`save_app` replaces `objects` whole.** Send every object, insert new ones at `max(fieldPos) + 1`,
+1. **The file is named exactly `AGENTS.md`**, is not empty, and is a child of a UI control in the object
+   tree — never in the Files group, whose objects leave the tree at activation. A wrong name, an empty
+   file or the Files group: ignored without an error.
+2. **The anchor is the nearest enclosing UI control.** Root control = app-wide; a page = while that page
+   is active; a dialog = while it is open; an `IconTabFilter` = on every tab, so per-tab files go on
+   the container inside the tab.
+3. **Files concatenate general-first, specific-last, with no header naming the file.** Every scoped
+   file opens by naming its screen and repeats nothing from the app-wide file.
+4. **Stop points bind; values do not.** Write "ask for X", never "use X". Routing words belong in the
+   description, not in a file.
+5. **Never `${…}`, `{{…}}` or a level-1 `#` heading** in a file. Use `##`.
+6. **Guard `neptune.ia`.** It is absent when the app opted out or the launchpad has no Agentic Apps
+   agent, and an unguarded call throws while the app loads: `neptune.ia?.registerTools(…)` as in the
+   docs, or an explicit check.
+7. **Anchor the tools on the app's root control itself**: `neptune.ia.registerTools(<RootControl>, …)`.
+   Not an inner control, and never a bare `localViewID`, which throws on a standalone page. A wrong
+   anchor is silent: registered, never offered.
+8. **Keep the tool contract** in `reference/custom-tools.md`. Anything outside it is dropped or
+   replaced by a failure, with only a console warning.
+9. **The provider runs on every iteration, on questions and for WebMCP.** It builds the list and
+   changes nothing. Say when to call a tool, never "every turn".
+10. **`save_app` replaces `objects` whole.** Send every object, add new ones at `max(fieldPos) + 1`,
     change nothing else, and never save while another user holds the lock.
-12. **`iaSettings.allowlist` exists in the payload but is never applied.** Only the denylist is enforced.
-    Do not offer it.
+11. **Denylist single controls, never a container**: denying a layout removes every control inside it.
+    To steer the agent away from an area, use a scoped file. `iaSettings.allowlist` exists in the
+    payload and is never applied; do not offer it.
 
 ## Workflow
 
@@ -65,11 +59,11 @@ Do the steps in order. Nothing is written to the server before step 5's approval
 
 ### 0. Preconditions
 
-- `get_system_info` → `release` must be 25.0 or higher. Below that, stop: the feature does not exist.
-- `list_apps` with `where: { application }` → `id`, `appType`. `A` (application) and `C` (building
-  block) have an object tree. `F` (Adaptive) is agentic by default but has no tree to place files in:
-  say so and offer to coach the Adaptive template app instead. `L` launchpads and `E` custom
-  components are out of scope.
+- `get_system_info`: the reported release must be 25.0 or higher. Below that, stop: the feature does
+  not exist.
+- `list_apps` with `where: { application }` → `id`, `appType` (codes in `manage-apps`). `A` and `C`
+  have an object tree. `F` (Adaptive) is agentic by default but has no tree to place files in: say so
+  and offer to coach the Adaptive template app instead. `L` and `E` are out of scope.
 - `list_locks` with `where: { objectID: <app id> }`: a lock held by **another** user blocks the save;
   ask the developer to have it released. Their own lock is fine, but their designer tab must be
   reloaded without saving afterwards.
@@ -81,8 +75,8 @@ Do the steps in order. Nothing is written to the server before step 5's approval
 
 `get_app({ id })` and keep the complete result: it is the base for the payload and the rollback copy.
 If the result was too large and was persisted to a file, read that file. Walk `objects` by
-`fieldParent` (each object names its parent's `fieldNo`; `0` is the root control's parent, `99999` the
-Scripts root, `99998` the Files group) and write down for the developer:
+`fieldParent` (keys and numeric roots: `manage-apps` § The object tree) and write down for the
+developer:
 
 - root control (the object whose `fieldParent` is `0`); custom tools are anchored on it by this name
 - pages, dialogs and popovers (dialogs are often kept in a folder under the Scripts root `99999`;
@@ -117,12 +111,12 @@ what the developer already told you.
 ### 3. Draft
 
 - **Description**: recipe below.
-- **AGENTS.md set**: recipe and worked example in `reference/agents-md.md`. Budgets: app-wide ≤ 3,000
-  chars, page or dialog ≤ 800, panel or tab ≤ 300.
+- **AGENTS.md set**: recipe, budgets and worked example in `reference/agents-md.md`.
 - **Custom tools**: only for answer 6. Start from the template in `reference/custom-tools.md`. Two to
   five tools, one script object.
 
-**Description recipe** (one paragraph, ≤ 600 chars, no technical name, no tile title):
+**Description recipe** (one paragraph; no technical name, no tile title; this skill keeps it under
+about 600 characters so the launchpad agent's catalogue stays readable across all its apps):
 
 1. The domain in two or three words. "Product returns."
 2. "Use this app to <the verbs users say>: <the objects>, and to <the second job>."
@@ -136,36 +130,17 @@ The same text opens the in-app agent's prompt, so it must read well as "You are 
 
 ### 4. Build the payload and check it
 
-Add each artifact as a **new object appended to `objects`** (`reference/object-tree.md` has the shape):
+Add each artifact as a new object appended to `objects`, exactly as `reference/object-tree.md` § What
+the skill inserts specifies; an existing `AGENTS.md` under the same anchor, or an existing
+`AgenticTools`, gets its `script` replaced instead of a second object. Put the new description in the
+app's `description` field. Leave every other object and field exactly as read.
 
-```json
-{ "fieldNo": "<new UUID, lowercase>", "fieldName": "AGENTS.md", "fieldParent": "<anchor fieldNo>",
-  "fieldPos": <highest existing fieldPos + 1>, "fieldType": "neptune.Markdown",
-  "script": "<the markdown>", "request": [], "response": [], "attributes": [] }
-```
+Before the plan is shown, walk these lists against the payload, item by item, and fix anything that
+fails:
 
-For the tools script use `"fieldName": "AgenticTools"`, `"fieldType": "neptune.Script"` and
-`"fieldParent": 99999` (a number). The anchor's `fieldNo` is a string, copied exactly. To update an
-existing `AGENTS.md` under the same anchor or an existing `AgenticTools`, replace that object's `script`
-instead of adding a second object. Put the new description in the app's `description` field. Leave
-every other object and field exactly as read.
-
-Before the plan is shown, walk this list against the payload, item by item, and fix anything that fails:
-
-- **Tree**: every `fieldParent` is an existing `fieldNo` or one of `0`, `99998`, `99999`; every
-  `fieldNo` is unique; every `fieldPos` is unique; the object count equals the original count plus
-  the objects you added; the original objects are unchanged.
-- **Files**: named exactly `AGENTS.md`; content not empty; parent is a control (never `99998`, never a
-  folder under it); one file per anchor; no `${`, no `{{`, no line starting with `# `; within budget;
-  every scoped file opens by naming its screen; nothing from the app-wide file repeated.
-- **Script**, read line by line: it starts with `(() => {` and ends with `})();`; the first statement
-  inside returns when `neptune` or `neptune.ia` is missing; `registerTools` is anchored on the app's
-  real root control, with no bare `localViewID`; nothing declared at column 0; every tool has a name of letters, digits, `_` and `-` up to 57
-  characters, unique in the script; a description that says what it returns and when to call it;
-  parameters with `type` in `string | number | boolean | date | array`, `required` as `true` or `false`
-  and a `description`; `execute` wrapped in try/catch, returning `{ toolId, success, message }` on every
-  path, with `message` a string; any data the tool reads is a model or control name that exists in the
-  app; missing figures are excluded rather than treated as zero; no "call every turn" wording.
+- **Tree**: `reference/object-tree.md` § Invariants.
+- **Each file**: `reference/agents-md.md` § Check a file.
+- **The script**, line by line: `reference/custom-tools.md` § Check before saving.
 - **Description**: follows the recipe, names no technical name, and reads well after "You are operating
   the … app,".
 
@@ -189,17 +164,11 @@ Write nothing until the developer says yes. If they change a text, redo step 4 f
 
 ### 6. Write
 
-1. `save_app({ app: { id, application, appType, title, description, enableMultiDevelopment, objects } })`
-   with the **complete** `objects`; other fields merge server-side. Add `disableIntelligence` or
-   `iaSettings` only when they changed.
-2. `activate_app({ id })`: makes it live; the files are embedded at build time.
-3. `get_app({ id })` again and compare with what was sent: same object count, every new object present
-   with the same name, type, parent and content, the description as sent. Any difference: stop, show
-   it, and do not claim success.
-
-Rollback is `save_app` with the original `objects` and `description`, then `activate_app`. Activation
-errors are the ones in `manage-apps`; none of them is caused by a Markdown object. A broken script only
-shows in the browser, which is why the step-4 read-through is not optional.
+`save_app` with the complete `objects`, then `activate_app`, then `get_app` again and compare with what
+was sent. The payload, the lock rule, the compare rule and the rollback are in
+`reference/object-tree.md` § The write cycle. Any difference between sent and re-read: stop, show it,
+and do not claim success. A broken script never fails activation, it only shows in the browser — which
+is why step 4 is not optional.
 
 ### 7. Hand over the verification checklist
 
@@ -211,7 +180,8 @@ MCP cannot run the agent. Give the developer this list, filled in with the real 
 2. Open the app with `?iaDebug=true` in the URL (before any `#`) and send one request.
 3. Console: an `app instructions` line appears once the app-wide text reached the agent;
    `custom tools collected { registered, active, offered }` lists the tool names under `active`
-   (`active: []` with `registered` filled = wrong anchor).
+   (`active: []` with `registered` filled = wrong anchor); `tools offered` is exactly what the model
+   was sent that iteration, also returned by `neptune.ia.getOfferedTools()`.
 4. `neptune.ia.getAgentFiles()` in the console lists the files of the views on screen with their `path`.
 5. Navigate to a page or open a dialog that has its own file and trigger one of its rules; go back and
    confirm the rule no longer applies.
@@ -231,6 +201,8 @@ MCP cannot run the agent. Give the developer this list, filled in with the real 
 | Dialog file never applies | file anchored to the dialog's folder or a sibling | anchor to the dialog control itself |
 | `custom tools collected { registered: [...], active: [] }` | wrong anchor, usually an inner control | anchor on the app's root control itself |
 | Tool offered (in the offered list) but never called | the description or instructions never say when to use it | "Use this whenever the user asks…" in the description, and an AGENTS.md rule naming the tool |
+| `custom tools collected { active: [...], offered: [] }` on an act turn | the provider returned no tools for that state | right if the tools are gated on the snapshot; otherwise a bug in the provider |
+| No `custom tools collected` line at all | no provider registered: the script did not run or returned early | check the `neptune.ia` guard and that the script object sits under the Scripts root |
 | `custom tool skipped` in the console | name, description or execute invalid; duplicate name | see the reason in the log line |
 | Tools never offered on a question | explain turns withhold custom tools | expected; ask the agent to do something |
 | App opens blank or `localViewID is not defined` | a script passes a bare `localViewID`, which is undeclared on a standalone page | anchor on the root control instead |
@@ -251,10 +223,8 @@ MCP cannot run the agent. Give the developer this list, filled in with the real 
 
 ## Permissions
 
-`get_app`, `save_app`, `activate_app` need the `appdesigner` role (`Get`, `Save`); `list_ai_agents` needs
-the `aiagent` role's `List` (see `manage-ai-agents`); `list_tiles` and `list_locks` need `List` on their
-own artifact roles. A missing role comes back as a permission error on that one call, not as a
-connection failure.
+As in `manage-apps` (`appdesigner`: `Get`, `Save`) and `manage-ai-agents` (`aiagent`: `List`). A missing
+role comes back as a permission error on that one call, not as a connection failure.
 
 ## Related skills
 
