@@ -4,11 +4,6 @@ Verified against a running Neptune DXP - Open Edition 25.0 instance. The officia
 "Agentic Apps" has the section "Register custom tools"; where this document says more than the docs,
 it is behaviour observed on the platform.
 
-**Builds after 25.0 behave differently in three ways**, each called out where it applies below: they
-accept the root control itself as the anchor, they let the agent consider custom tools while it plans,
-and the agent can press sortable table column headers. Find the server's version with `get_system_info`
-before choosing a form; when in doubt, write the 25.0 form, which works on every version.
-
 ## When a custom tool earns its place
 
 Built-in tools already read every supported control and can set, press, select and navigate. A custom
@@ -21,7 +16,6 @@ tool is for what the screen **cannot express**:
 | A policy or validation must be checked before a write | "Which resolutions are allowed for this delivery?" | The rule fits in one AGENTS.md sentence |
 | A server verb has no button | Reload from the backend after a change | A button already does it (the agent presses buttons) |
 | The user describes a thing instead of naming its key | "the forklift by dock 3" to a fleet number | The screen has a working search field |
-| On 25.0, the user asks for a table in an order and the app sorts through clickable column headers | "Show the oldest first" | The server is newer than 25.0: the agent presses sortable column headers itself |
 
 Two to five tools per app. Each one answers a question the developer can name.
 
@@ -30,8 +24,7 @@ Two to five tools per app. Each one answers a question the developer can name.
 ```js
 neptune.ia.registerTools(anchor, provider)
 
-anchor    // 25.0: an id string: localViewID inside a launchpad view, the root control's id on a
-          //   standalone page. Newer builds: the root control itself (an id string still works).
+anchor    // the app's root control itself, e.g. App (an id string is also accepted)
 provider  // (context) => CustomTool[] | Promise<CustomTool[]>, called on every iteration
 context   // { viewKey, task, threadID?, snapshot }
 snapshot  // { controls: [{ id, type, label?, properties, bindings?, actions? }], generatedAt,
@@ -78,18 +71,13 @@ The warnings print to the browser console whether or not `?iaDebug=true` is set.
 - **Also called on explain turns** (questions), where the tools are then withheld from the model, and
   **by WebMCP** with an empty `task`. The provider must only build the list. Anything it changes will
   change on a question.
-- **Only the active view's providers are asked**, so the anchor must identify the app's own view.
-  - **On 25.0**, pass an id string. Inside a launchpad an app is compiled as a view and the id that
-    matches is `localViewID`; the root control's id does **not** match there when the script runs at
-    app start, because the control is not yet attached to its view, so the tools reach nobody. On a
-    standalone page the root control's id is the one that matches. Hence the guarded expression in
-    the template.
-  - **On newer builds**, pass the root control itself: `neptune.ia.registerTools(<RootControl>, …)`.
-    The platform resolves it to the app's view in a launchpad and on a standalone page alike, so no
-    `localViewID` guard is needed. An id string still works, so a 25.0 script keeps working after an
-    upgrade. Passing a control to a 25.0 server registers nothing, silently.
-  - A wrong anchor is silent: `?iaDebug=true` shows
-    `custom tools collected { registered: [...], active: [], offered: [] }`.
+- **Only the active view's providers are asked**, so anchor the tools on the app: pass its root control
+  itself, `neptune.ia.registerTools(<RootControl>, …)`. The platform resolves it to the app's view, in
+  a launchpad and on a standalone page alike. An id string is also accepted, `localViewID` included, so
+  older scripts keep working, but a local id such as `'App'` can name a different control inside a
+  launchpad; the control is the form that cannot be got wrong. Do not anchor on an inner control: its
+  tools are offered only while that control's own view is on screen. A wrong anchor is silent:
+  `?iaDebug=true` shows `custom tools collected { registered: [...], active: [], offered: [] }`.
 - **`neptune.ia` can be absent.** The Agentic Apps runtime is only loaded on a page that is agentic:
   a standalone app with "Disable Agentic Apps" ticked, or a launchpad without an Agentic Apps agent,
   has no `neptune.ia`, and a bare call throws while the app loads. Guard it.
@@ -107,15 +95,13 @@ The warnings print to the browser console whether or not `?iaDebug=true` is set.
 - Tool id `custom-<name>`, description **verbatim**, and a JSON schema built from `parameters`
   (`date` becomes a string with date format; `array` gets `items`; a type array becomes a union).
 - The description is the only thing that tells the model **when** to call it. Write it as
-  "Returns X. Call it when Y, before Z." "Call this tool every turn" makes models fixate and spin to
-  the iteration cap. Say when instead.
+  "Returns X. Use this whenever the user asks Y." "Call this tool every turn" makes models fixate and
+  spin to the iteration cap. Say when instead.
+- When a custom tool matches the task, the agent prefers it over rebuilding the same job from
+  controls, and it judges "matches" from the description. A description that only says what the tool
+  does, not when to use it, is the usual reason a tool is offered and never called.
 - AGENTS.md can name the tool ("run `checkDelivery` before choosing a resolution"), which is the
   strongest way to make the agent use it at the right moment.
-- **On 25.0 the agent plans control first**: it works out which controls to set and press, and a
-  custom tool, which names no control, is easily never considered. Name every custom tool in an
-  AGENTS.md rule that says when to use it; on 25.0 that is the difference between a tool that is used
-  and one that is only offered. Newer builds let the agent prefer a matching custom tool over
-  rebuilding the same job from controls, and the AGENTS.md rule still sets the moment.
 
 ## Writing rules
 
@@ -130,9 +116,8 @@ The warnings print to the browser console whether or not `?iaDebug=true` is set.
 6. **The provider is pure.** Read the snapshot, build the array, return. No navigation, no model writes.
 7. **A tool that writes is a consequential action.** Name it in the AGENTS.md stop-point rule so the
    agent confirms before calling it, exactly like a submit button.
-8. **Anchor on the app's own view.** On 25.0, or when the version is unknown:
-   `typeof localViewID !== 'undefined' ? localViewID : <RootControl>.getId()`. On a server newer than
-   25.0: `<RootControl>` itself.
+8. **Anchor on the app's root control itself**: `neptune.ia.registerTools(<RootControl>, …)`. Not an
+   inner control, and not a bare `localViewID`, which is undeclared on a standalone page.
 9. **One script object, IIFE-wrapped, nothing at column 0.** App scripts share one scope; a top-level
    `const` that another script also declares throws a redeclaration error for the whole app.
 10. **Return `{ toolId, success, message }`.** The platform only needs `success`, but the App Designer
@@ -154,11 +139,6 @@ angle brackets with the real names and data reads.
     if (typeof neptune === 'undefined' || !neptune.ia || typeof neptune.ia.registerTools !== 'function') {
         return; // the Agentic Apps runtime is not on this page (app opted out, or a launchpad without an agent)
     }
-    // Works on 25.0 and on every newer build. Inside a launchpad the app is compiled as a view and
-    // registers under localViewID; on its own page it registers under the root control's id.
-    // On a server newer than 25.0 this line may be replaced by: const viewKey = <RootControl>;
-    const viewKey = typeof localViewID !== 'undefined' ? localViewID : <RootControl>.getId();
-
     const asText = (v) => {
         const s = typeof v === 'string' ? v : JSON.stringify(v);
         return s.length > 2000 ? s.slice(0, 2000) + ' ...[truncated]' : s;
@@ -168,11 +148,12 @@ angle brackets with the real names and data reads.
     const popupOpen = (snapshot, name) =>
         (snapshot?.openPopups || []).some((p) => p.id === name || String(p.id).endsWith('--' + name));
 
-    neptune.ia.registerTools(viewKey, ({ snapshot }) => {
+    // Anchor on the app's root control: resolved to the app's view in a launchpad and standalone alike.
+    neptune.ia.registerTools(<RootControl>, ({ snapshot }) => {
         const tools = [
             {
                 name: '<toolName>',
-                description: '<What it returns and when to call it. Name the question this answers that the screen cannot.>',
+                description: '<Returns X. Use this whenever the user asks Y, a question the screen cannot answer.>',
                 parameters: [
                     { name: 'query', type: 'string', required: true, description: '<What the user said, e.g. "pump 12">' },
                 ],
@@ -212,11 +193,11 @@ angle brackets with the real names and data reads.
 })();
 ```
 
-This keeps the shape of the official sample and adds the guards it lacks. The 25.0 documentation
-passes `localViewID` bare (`neptune.ia?.registerTools(localViewID, ({ snapshot }) => …)`), which throws
-on a standalone page because `localViewID` is undeclared there. The documentation for newer builds
-passes the root control (`neptune.ia.registerTools(rootControl, (context) => …)`), which is correct on
-those builds and registers nothing on 25.0.
+This keeps the shape of the official sample (`neptune.ia.registerTools(rootControl, (context) => …)`)
+and adds what a production script needs on top: the `neptune.ia` guard, a try/catch in every
+`execute`, failures that tell the agent what to do next, and a capped `message`. A script written
+earlier that passes `localViewID` or an id string keeps working; one that passes `localViewID` bare
+throws on a standalone page, where it is undeclared.
 
 **Popup ids.** `openPopups[].id` is the App Designer name inside a launchpad view (`DialogOrder`) and
 the raw runtime id on a standalone page; on a collision the platform appends `#2`. Match exact-or-suffix
@@ -235,10 +216,8 @@ items fails to load for every user of the app; the rest decide whether the agent
 1. The file is one expression: it starts with `(() => {` and ends with `})();`. Nothing is declared at
    column 0.
 2. The first statement inside returns when `neptune` is undefined or `neptune.ia` is missing.
-3. The anchor matches the server's version: on 25.0 or an unknown version, `localViewID` appears only
-   inside `typeof localViewID !== 'undefined' ? localViewID : <RootControl>.getId()`; on a newer
-   server, the anchor may instead be `<RootControl>` itself, never a control passed to a 25.0 server.
-   Either way `<RootControl>` is the app's real root control name.
+3. `registerTools` is anchored on `<RootControl>`, replaced with the app's real root control name from
+   the tree listing: not an inner control, and no bare `localViewID`.
 4. Every tool name uses letters, digits, `_` and `-` only, is at most 57 characters, and is unique.
 5. Every description says what the tool returns and when to call it; none says "every turn".
 6. Every parameter has a `type` from `string | number | boolean | date | array`, `required` written as
@@ -257,12 +236,12 @@ Open the app with `?iaDebug=true` (before the URL hash), ask the agent to do som
 read the console:
 
 - `custom tools collected { registered: ['custom-findDelivery', …], active: [...], offered: [...] }`:
-  `registered` full and `active` empty is the wrong-key case; `offered: []` on a question is normal
+  `registered` full and `active` empty is the wrong-anchor case; `offered: []` on a question is normal
   (explain turns withhold custom tools).
+- `tools offered` lists exactly what the model was sent in that iteration, and
+  `neptune.ia.getOfferedTools()` returns the same list under `?iaDebug=true`.
 - `custom tool skipped` names a validation failure and its reason.
 - In Agent Trace (Cockpit), filter Triggered From = `agentic-apps` to see the tool call and its result.
-- On newer builds, a `tools offered` line lists exactly what the model was sent in that iteration, and
-  `neptune.ia.getOfferedTools()` returns the same list under `?iaDebug=true`.
 
 ## When the agent ignores a tool
 
