@@ -45,14 +45,10 @@ All verified against a running 25.0 instance. Details in `reference/agents-md.md
    prompt and uses level-1 headings as section markers). Use `##`.
 7. **Custom tools: `neptune.ia` can be absent** (app opted out, or a launchpad without an Agentic Apps
    agent). A bare `neptune.ia.registerTools(...)` throws while the app loads. Guard it.
-8. **Anchor the tools on the app's own view, per version** (`get_system_info`). On 25.0 or an unknown
-   version: `typeof localViewID !== 'undefined' ? localViewID : <RootControl>.getId()` — `localViewID`
-   exists only inside a launchpad view, and inside one the root control's id does not match at app
-   start. On a newer server: pass `<RootControl>` itself, which works in a launchpad and standalone
-   alike; a control passed to a 25.0 server registers nothing. A wrong anchor is silent: the tools are
-   registered and never offered.
-   On 25.0 the agent plans control first and rarely considers a custom tool on its own, so **name every
-   tool in an AGENTS.md rule** that says when to use it.
+8. **Anchor the tools on the app's root control itself**: `neptune.ia.registerTools(<RootControl>, …)`
+   works in a launchpad and standalone alike. Not an inner control, and never a bare `localViewID`,
+   which exists only inside a launchpad view and throws on a standalone page. A wrong anchor is silent:
+   the tools are registered and never offered.
 9. **Tool contract**: name of letters, digits, `_` and `-`, up to 57 characters, unique per app;
    parameter types only `string | number | boolean | date | array`; `execute` returns
    `{ toolId, success: boolean, message: string }`. Anything else is dropped or replaced by a failure.
@@ -88,7 +84,7 @@ If the result was too large and was persisted to a file, read that file. Walk `o
 `fieldParent` (each object names its parent's `fieldNo`; `0` is the root control's parent, `99999` the
 Scripts root, `99998` the Files group) and write down for the developer:
 
-- root control (the object whose `fieldParent` is `0`); its name is the standalone view key
+- root control (the object whose `fieldParent` is `0`); custom tools are anchored on it by this name
 - pages, dialogs and popovers (dialogs are often kept in a folder under the Scripts root `99999`;
   they are still valid anchors), tab filters and the first container inside each, panels
 - buttons whose `attributes` carry a `press` event: the candidate stop points
@@ -163,10 +159,8 @@ Before the plan is shown, walk this list against the payload, item by item, and 
   folder under it); one file per anchor; no `${`, no `{{`, no line starting with `# `; within budget;
   every scoped file opens by naming its screen; nothing from the app-wide file repeated.
 - **Script**, read line by line: it starts with `(() => {` and ends with `})();`; the first statement
-  inside returns when `neptune` or `neptune.ia` is missing; the anchor matches the server's version
-  (`localViewID` only inside `typeof localViewID !== 'undefined' ? localViewID : <RootControl>.getId()`,
-  or `<RootControl>` itself on a server newer than 25.0) with the real root control name; every custom
-  tool is named in an AGENTS.md rule; nothing declared at column 0; every tool has a name of letters, digits, `_` and `-` up to 57
+  inside returns when `neptune` or `neptune.ia` is missing; `registerTools` is anchored on the app's
+  real root control, with no bare `localViewID`; nothing declared at column 0; every tool has a name of letters, digits, `_` and `-` up to 57
   characters, unique in the script; a description that says what it returns and when to call it;
   parameters with `type` in `string | number | boolean | date | array`, `required` as `true` or `false`
   and a `description`; `execute` wrapped in try/catch, returning `{ toolId, success, message }` on every
@@ -217,7 +211,7 @@ MCP cannot run the agent. Give the developer this list, filled in with the real 
 2. Open the app with `?iaDebug=true` in the URL (before any `#`) and send one request.
 3. Console: an `app instructions` line appears once the app-wide text reached the agent;
    `custom tools collected { registered, active, offered }` lists the tool names under `active`
-   (`active: []` with `registered` filled = wrong view key).
+   (`active: []` with `registered` filled = wrong anchor).
 4. `neptune.ia.getAgentFiles()` in the console lists the files of the views on screen with their `path`.
 5. Navigate to a page or open a dialog that has its own file and trigger one of its rules; go back and
    confirm the rule no longer applies.
@@ -235,12 +229,11 @@ MCP cannot run the agent. Give the developer this list, filled in with the real 
 | No `app instructions` line, `getAgentFiles()` empty | file not named `AGENTS.md`, empty, or in the Files group | rename / move under a control, activate again |
 | Page file applies on every screen | anchored to an `IconTabFilter`, the root control, or a container that is always rendered | anchor to the page or the tab's content container |
 | Dialog file never applies | file anchored to the dialog's folder or a sibling | anchor to the dialog control itself |
-| `custom tools collected { registered: [...], active: [] }` | wrong anchor for the server's version | 25.0: the `localViewID` / root-control-id expression; newer: the root control itself |
+| `custom tools collected { registered: [...], active: [] }` | wrong anchor, usually an inner control | anchor on the app's root control itself |
 | Tool offered (in the offered list) but never called | the description or instructions never say when to use it | "Use this whenever the user asks…" in the description, and an AGENTS.md rule naming the tool |
-| Agent cannot sort a table the user can sort by clicking a header (25.0) | 25.0 cannot press app-built sortable column headers | a custom tool that returns the rows in the requested order; newer builds press the header |
 | `custom tool skipped` in the console | name, description or execute invalid; duplicate name | see the reason in the log line |
 | Tools never offered on a question | explain turns withhold custom tools | expected; ask the agent to do something |
-| App opens blank or `localViewID is not defined` | script throws at load | the step-4 read-through missed a bare `localViewID`; add the `typeof` guard |
+| App opens blank or `localViewID is not defined` | a script passes a bare `localViewID`, which is undeclared on a standalone page | anchor on the root control instead |
 | Agent fills a value it was not given | files cannot enforce values | write "ask for X"; check the request itself |
 | Agent skips the confirmation | rule missing or phrased as a description | write it as a stop point: "never press X in the turn that…; read back; ask" |
 | Launchpad agent opens another app | description does not carry the users' words, or the sibling's does | sharpen the description; add "Not for …" to the sibling; wait 60 s |
