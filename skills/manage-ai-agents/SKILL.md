@@ -43,11 +43,11 @@ Also never send `inputGuardrailsMap`, `outputGuardrailsMap`, `logs`, `iaLaunchpa
 | Field | Rules |
 |---|---|
 | `id` | Omit to create, include to update. An unknown `id` creates a record with that id. |
-| `name` | Required on create, **unique**, max 64 characters. **All whitespace is removed** (`"Support Agent"` is stored as `"SupportAgent"`) — pass the name without spaces so the stored name matches what you report. |
+| `name` | Required on create **and on every update**: send the current name from `get_ai_agent` unchanged to keep it — an update without `name` fails with `name 'undefined' already exists!`. **Unique.** Keep it within 64 characters: the save does not check the length, and depending on the database a longer name is either stored or refused with `Error saving ai_agent`. **All whitespace is removed** (`"Support Agent"` is stored as `"SupportAgent"`) — pass the name without spaces so the stored name matches what you report. |
 | `model` | **Required for a standard agent**, on create and whenever you send it: the id of a completion model (`list_ai_models` with `where: { "outputType": "text" }`). Missing → `model is required`. |
 | `type` | `standard` (default) or `external`. **Creating an external agent is refused** (`Not supporting creating external ai agent via mcp tool yet`). Never flip the type of an existing agent. |
 | `enableIntelligentApps` | `true` makes this an **Agentic Apps agent** (section below). Default false. |
-| `prompt` | `{ "txt": "<instruction>" }` or `{ "id": "<version id>" }` — the instruction (system prompt), versioned. See Instructions. |
+| `prompt` | `{ "txt": "<instruction>" }` — the instruction (system prompt), versioned; `txt` is required. See Instructions. |
 | `config` | Behavior settings. **Merged**, not replaced: keys you send are applied on top of the stored config and the defaults (one level deep inside `modelConfig`, `vectorConfig`, `compactionConfig`). Sending `config: {}` keeps everything. |
 | `tools`, `tableSources`, `localMCPConnections`, `remoteMCPConnections`, `roles` | `[{ "id": "<uuid>" }]`. **Present = replaced wholesale, absent = untouched.** To add one item, send the full list. |
 | `inputGuardrails`, `outputGuardrails` | `[{ "id": "<guardrail uuid>" }]`, **array order = execution order** (put cheap rule guardrails first). **Rewritten from the payload on every save: omitted = cleared.** An agent with guardrails must carry both arrays on every `save_ai_agent`, even a prompt-only change — `get_ai_agent` first and copy the ids. |
@@ -69,7 +69,7 @@ Also on every save and delete: `name '<name>' already exists!` for a duplicate; 
   "enableHybridTools": false, "openTasksInPromptLimit": 10, "continueTasksAfterDisconnect": false }
 ```
 
-`temperature` is not defaulted — absent means the vendor's default. `maxSteps` is **not** defaulted either: an agent with tools, peers, MCP connections or memory needs `config.maxSteps` (2–20; the Cockpit uses 2, or 10 with task & artifact tools) or it stops after a single model step and never acts on a tool result.
+`temperature` is not defaulted — absent means the vendor's default. `maxSteps` is not stored by default: an agent that has any tool at run time (its AI tools, MCP connections, memory, peers, SAP data sources …) and no `maxSteps` is capped at **5** model steps per request. Set `config.maxSteps` to a whole number when it needs a different budget. The value is not range-checked — the Cockpit offers 2–20; `1` ends the request right after the first tool call, before the tool result is used; `0` counts as unset; a negative or fractional value removes the step limit entirely.
 
 ## Normal agent vs Agentic Apps agent
 
@@ -107,11 +107,11 @@ save_ai_agent({ "aiAgent": {
 }})
 ```
 
-Turning an existing chat agent into an Agentic Apps agent: `save_ai_agent({ "aiAgent": { "id": "…", "enableIntelligentApps": true, "config": { "modelConfig": { "response_format": "text" } } } })` — its tools stay stored but are not used on Agentic Apps turns. Turning it back: `enableIntelligentApps: false` and give it instructions again.
+Turning an existing chat agent into an Agentic Apps agent: `save_ai_agent({ "aiAgent": { "id": "…", "name": "…", "enableIntelligentApps": true, "config": { "modelConfig": { "response_format": "text" } } } })`, plus both guardrail arrays if the agent has guardrails — its tools stay stored but are not used on Agentic Apps turns. Turning it back: `enableIntelligentApps: false` and give it instructions again (same `name` and guardrail rule).
 
 ## Instructions (the system prompt)
 
-- `prompt: { "txt": "…" }` — when the text differs from the latest stored version, the active version is deactivated and a new **active** version is created; identical text creates nothing. `prompt: { "id": "<version id from prompts[]>" }` re-activates an older version. Every agent should have one active version; without it the agent runs without instructions (logged as a system error).
+- `prompt: { "txt": "…" }` — text that differs from the newest version in `prompts[]` deactivates the active version and creates a new **active** one. Text identical to the newest version creates nothing; if that newest version is inactive (an older one was set active in the Cockpit), it is re-activated **next to** the active one — two active versions. So when the newest entry in `prompts[]` is not the active one, make your text differ from it (a trailing newline is enough). Send `txt` only, never `prompt.id` — with an id the platform can also leave two versions active. To go back to an older version, send its text (copied from `prompts[]`) as `txt`; it is stored as a new active version. Every agent should have one active version; without it the agent runs without instructions (logged as a system error).
 - Writing prompts additionally requires the `AIPrompt` role with `Save` (error `User does not have permission to edit AI Prompts`) and edit access to the prompt's package.
 - Variables: `{{variableName}}` placeholders. System variables are filled by the platform (user data such as `{{name}}`, and `{{currentTime}}`); custom variables must be supplied by the caller (`agents.<name>({ input, variables })` in scripts, the chatbox's variables). Variable names must not contain spaces.
 - `get_ai_agent` lists all versions in `prompts[]`; `currentPrompt` is the active id and `variables` its placeholders. Never send `prompts` back.
@@ -125,7 +125,7 @@ Turning an existing chat agent into an Agentic Apps agent: `save_ai_agent({ "aiA
 | `modelConfig.schema` | `{ "name": "<identifier>", "schema": { …JSON Schema… } }` | Required when `json_schema` (`schema is required when response_format is "json_schema"`). |
 | `modelConfig.temperature` | number, or `null` | Creativity; `null`/absent = vendor default. Low for classification. |
 | `modelConfig.lastMessages` | integer (default 3) | Previous messages resent per turn. Ignored while compaction is on. |
-| `maxSteps` | 2–20 | Max model steps per request (each tool call costs a step). Set it on every tool-using agent. |
+| `maxSteps` | whole number (not range-checked; the Cockpit offers 2–20) | Max model steps per request (each tool call costs a step). Unset or `0`: 5 for an agent with tools. `1` stops right after the first tool call; a negative or fractional value means no limit. |
 | `reasoning` | boolean | Extended reasoning (the model must support it). |
 | `reasoningEffort` | `"low"` \| `"medium"` \| `"high"` | OpenAI reasoning models. |
 | `reasoningBudget` | integer tokens | Non-OpenAI reasoning models. |
@@ -205,6 +205,7 @@ save_ai_agent({ "aiAgent": {
 ```json
 save_ai_agent({ "aiAgent": {
   "id": "<Hermes id>",
+  "name": "Hermes",
   "config": { "useMemory": true, "dynamicToolSelection": true, "maxSteps": 10,
     "compactionConfig": { "enabled": true, "contextWindowTokens": 128000, "thresholdPercentage": 70, "modelId": "<small completion model id>" },
     "reasoning": true, "reasoningEffort": "medium" }
@@ -227,24 +228,26 @@ save_ai_agent({ "aiAgent": {
 
 **Updates**
 
+Start every update with `get_ai_agent`. Every payload carries the agent's current `name` — without it the save fails with `name 'undefined' already exists!`. If the agent has guardrails, every payload also carries `inputGuardrails` and `outputGuardrails` (ids, in order); an update that omits them clears them.
+
 | Intent | Payload |
 |---|---|
-| Change the instructions only | `{ "id": "…", "prompt": { "txt": "<new full text>" } }` — one new active version; nothing else touched. **If the agent has guardrails, add its `inputGuardrails` and `outputGuardrails` arrays to this payload** (they are cleared when omitted) |
-| Re-activate an older instruction version | `{ "id": "…", "prompt": { "id": "<version id from prompts[]>" } }` |
-| Add a tool | `get_ai_agent` → `tools` → append → `{ "id": "…", "tools": [ …all ids… ] }` (and raise `config.maxSteps` if needed) |
-| Remove all tools | `{ "id": "…", "tools": [] }` |
-| Switch the model | `{ "id": "…", "model": "<other completion model id>" }` |
-| Change one setting | `{ "id": "…", "config": { "modelConfig": { "temperature": 0.5 } } }` — merged, other keys kept |
-| Drop the temperature (vendor default) | `{ "id": "…", "config": { "modelConfig": { "temperature": null } } }` |
-| Restrict to roles / open to everyone | `{ "id": "…", "roles": [{ "id": "…" }] }` / `{ "id": "…", "roles": [] }` |
-| Move to another package | `{ "id": "…", "package": "<package id>" }` (prompt versions move too) |
-| Reorder guardrails | send the full `inputGuardrails` array in the new order |
+| Change the instructions only | `{ "id": "…", "name": "…", "prompt": { "txt": "<new full text>" } }` — one new active version; nothing else touched |
+| Go back to an older instruction | `{ "id": "…", "name": "…", "prompt": { "txt": "<text copied from prompts[]>" } }` — stored as a new active version (if that text equals the newest entry and the newest entry is inactive, change it slightly — see Instructions) |
+| Add a tool | `get_ai_agent` → `tools` → append → `{ "id": "…", "name": "…", "tools": [ …all ids… ] }` (and raise `config.maxSteps` if needed) |
+| Remove all tools | `{ "id": "…", "name": "…", "tools": [] }` |
+| Switch the model | `{ "id": "…", "name": "…", "model": "<other completion model id>" }` |
+| Change one setting | `{ "id": "…", "name": "…", "config": { "modelConfig": { "temperature": 0.5 } } }` — merged, other keys kept |
+| Drop the temperature (vendor default) | `{ "id": "…", "name": "…", "config": { "modelConfig": { "temperature": null } } }` |
+| Restrict to roles / open to everyone | `{ "id": "…", "name": "…", "roles": [{ "id": "…" }] }` / `{ "id": "…", "name": "…", "roles": [] }` |
+| Move to another package | `{ "id": "…", "name": "…", "package": "<package id>" }` (prompt versions move too) |
+| Reorder guardrails | `{ "id": "…", "name": "…", "inputGuardrails": [ …new order… ], "outputGuardrails": [ …unchanged… ] }` — both arrays, even when only one changes |
 
 ## End-to-end: "create an agent that can …"
 
-1. **Model**: `list_ai_models({ "listOptions": { "where": { "outputType": "text" } } })`; none suitable → `manage-ai-models` (create without secrets, then update with the key).
+1. **Model**: `list_ai_models({ "listOptions": { "where": { "outputType": "text" } } })`; none suitable → register one with `manage-ai-models` (its key goes in the create call, except for the very first model on an instance).
 2. **Tools**: one `save_ai_tool` per capability (`manage-ai-tools`): valid function name, a specific `prompt`, the full `config` (SCRIPT needs `parameters`, TABLE needs `operations`). Keep the returned ids.
-3. **Agent**: `save_ai_agent` with `name` (no spaces), `model`, `prompt.txt`, `tools [{id}]`, `config.maxSteps`, optional `roles`/`package`/guardrails.
+3. **Agent**: `save_ai_agent` with `name` (no spaces), `model`, `prompt.txt`, `tools [{id}]`, optional `config.maxSteps` (5 when unset) and `roles`/`package`/guardrails.
 4. **Verify**: read the save response or `get_ai_agent`: `tools` lists your ids, `currentPrompt` is set, `config` shows the merged values, `modelObj.name` is the intended model.
 5. **Run**: not over MCP. The user tests in the Cockpit Playground, or you write a script that calls `agents.<contextname>({ input, variables })` after linking the agent via `save_server_script.agents` (`manage-server-scripts`) and run it with `run_server_script`.
 
@@ -271,15 +274,17 @@ save_ai_agent({ "aiAgent": {
 | `schema is required when response_format is "json_schema"` | Add `modelConfig.schema` with `name` and `schema`. |
 | `modelId is required when compaction is enabled` (also `contextWindowTokens…`, `thresholdPercentage…`) | Complete `compactionConfig`. |
 | `User does not have permission to edit AI Prompts` | `prompt` sent without the `AIPrompt` Save permission. |
+| `name 'undefined' already exists!` | An update without `name`. Send the agent's current `name` (from `get_ai_agent`) with every update. |
 | `name '<name>' already exists!` | Duplicate name (compare without spaces). |
-| Input validation error naming e.g. `["aiAgent", "tools", 0, "id"]` | A relation id is not a UUID; nothing saved. |
+| Input validation error `Required at aiAgent.prompt.txt` | `prompt` without `txt` (for example `{ "id": … }` alone). Send `{ "txt": … }`. |
+| Input validation error such as `Invalid uuid at aiAgent.tools[0].id` | A relation id is not a UUID; nothing saved. |
 | `Access denied: no permission for aiagent` | Missing `aiagent` role permission (`List`/`Get`/`Save`/`Del`). |
 | `<name> is locked by <user> since <time>` | Open in the Cockpit by someone else. |
 | `No edit access to artifact` / `Cannot assign artifact to system package` / `Package is a required field` / `Your default package cannot be used: …` | Package rules. |
 | `cardUrl is required for an external agent` / `Not an external agent` / `This card URL is already registered as '<name>'` / `Unable to fetch agent card: …` / `Card URL not allowed: …` | External-agent update rules. |
 | `Not Found` | Unknown id on `get_ai_agent`. |
-| `Error saving ai_agent` | Refused without detail — usually a relation id that does not exist. Nothing changed. |
-| Agent answers but never uses its tools | `maxSteps` missing/1, `response_format` is `json_schema`, the tool's `prompt` is weak, the user lacks the tool's roles, or a `TABLE` tool without the `R` operation key broke tool generation (Agent Trace: `Failed to generate tools for AI Agent`). |
+| `Error saving ai_agent` | Refused without detail — usually a relation id that does not exist, or a `name` longer than 64 characters on a database that enforces the limit. Nothing changed. |
+| Agent answers but never uses its tools | `maxSteps` set to 1, `response_format` is `json_schema`, the tool's `prompt` is weak, the user lacks the tool's roles, or a `TABLE` tool without the `R` operation key broke tool generation (Agent Trace: `Failed to generate tools for AI Agent`). |
 | Guardrails vanished after an update | The save omitted `inputGuardrails` / `outputGuardrails`. Re-send both arrays. |
 | Agent runs without instructions (Agent Trace: `No active prompt found`) | No active prompt version — send `prompt.txt`. |
 | Launchpad with Agentic Apps enabled fails every turn | The selected agent lacks `enableIntelligentApps: true`, or its `response_format` is not `text`. |

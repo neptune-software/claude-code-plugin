@@ -23,12 +23,12 @@ At run time the agent's model sees each tool as a **function**: the tool's `name
 | Field | Rules |
 |---|---|
 | `id` | Omit to create, include to update. An `id` that does not exist **creates** a record with that id — confirm with `get_ai_tool` when you intend update-only. Copy ids exactly as returned, including case. |
-| `name` | Required on create, **unique**, max 64 characters. For **every type** this is the **function name the model calls**, so use only letters, digits, `_` and `-`, no spaces, verb-first (`getOpenTickets`, `send_customer_email`); put the human-readable title in `displayName`. The platform does not validate the charset — a name with spaces or dots saves fine and is rejected by the model provider at run time. |
+| `name` | Required on create **and on every update**: send the current name unchanged to keep it — an update without `name` fails with `name 'undefined' already exists!`. **Unique.** Keep it within 64 characters: the save does not check the length, and depending on the database a longer name is either stored or refused with `Error saving ai_tool`. For **every type** this is the **function name the model calls**, so use only letters, digits, `_` and `-`, no spaces, verb-first (`getOpenTickets`, `send_customer_email`); put the human-readable title in `displayName`. The platform does not validate the charset — a name with spaces or dots saves fine and is rejected by the model provider at run time. |
 | `type` | Required on create: `SCRIPT`, `API`, `WEBSEARCH`, `TABLE`, `EMAIL`, `PDF`, `CHART` (Cockpit labels: Script, API, Web Search, Table Definition, Email, PDF, Chart). Never inferred — omitting it fails with `type is required`; ask the user which kind. Do not change the type of an existing tool; create a new one. |
 | `prompt` | **The description the model reads** — when and why to call the tool, what it returns. The Cockpit requires it for every type except `TABLE` (whose description is generated from the table at run time). Concrete and specific; a weak prompt is the main reason a tool is never called. |
 | `description` | Human description shown in lists. Used as the model-facing text only when `prompt` is empty. |
 | `displayName` | Friendly label shown in the chat UI when the tool fires, instead of `name`. Not used for `TABLE` (each operation has its own `displayName`). |
-| `config` | Type-specific object (next section). **Validated against the type's shape on every create (an omitted `config` is validated as `{}`) and on every update that carries `config`; replaced wholesale — never merged.** An unknown key at the top level of `config` fails the save with `Invalid config for tool type <TYPE>: <detail>`; unknown keys nested inside a parameter or an operation are dropped silently. Omit `config` on an update to keep the stored one. |
+| `config` | Type-specific object (next section). **Validated against the type's shape on every create (an omitted `config` is validated as `{}`) and on every update that carries `config`; replaced wholesale — never merged.** An unknown key at the top level of `config` fails the save with `Invalid config for tool type <TYPE>: <detail>`. Unknown keys inside a SCRIPT parameter, or directly inside `operations` or one of its `C`/`R`/`U`/`D` objects, are dropped silently; the items of a `fields` array are stored as sent, extra attributes included. Omit `config` on an update to keep the stored one. |
 | `roles` | `[{ "id": "<role uuid>" }]`. When non-empty, only users holding one of the roles get the tool at run time (the agent still runs, without it). `roles: []` removes the restriction. Role ids are not discoverable over MCP — take them from the Cockpit or from an existing artifact's `roles`. |
 | `agents` | **Read-only here.** Which agents use the tool is set on the agent (`save_ai_agent` → `tools`). |
 | `version` | Free text you maintain (`"1.2"`). `ver` is the server's own save stamp. |
@@ -192,13 +192,13 @@ save_ai_tool({ "aiTool": {
 
 **Discover**: `list_ai_tools` (filter with `listOptions.where`, e.g. `{ "type": "SCRIPT" }` or `{ "name": { "operation": "ILike", "value": "%ticket%" } }`) → `get_ai_tool({ id })` for the prompt, config and the agents that use it.
 
-**Create and attach**: check the name is free (`list_ai_tools` with `where.name`) → look up the referenced artifact id → `save_ai_tool` → confirm the response echoes your `config` → add the returned `id` to the agent's `tools` array with `save_ai_agent` (`manage-ai-agents`; the array is replaced wholesale, so send the full list) → set the agent's `config.maxSteps` so it can act on the tool's result.
+**Create and attach**: check the name is free (`list_ai_tools` with `where.name`) → look up the referenced artifact id → `save_ai_tool` → confirm the response echoes your `config` → add the returned `id` to the agent's `tools` array with `save_ai_agent` (`manage-ai-agents`; the array is replaced wholesale, so send the full list, with the agent's `name` and — if it has guardrails — its `inputGuardrails` and `outputGuardrails` ids in order, which `save_ai_agent` clears when omitted) → raise the agent's `config.maxSteps` if the task needs more than the default 5 steps.
 
-**Change the prompt only**: `save_ai_tool({ "aiTool": { "id": "…", "prompt": "…" } })` — omitted keys, including `config`, stay untouched.
+**Change the prompt only**: `save_ai_tool({ "aiTool": { "id": "…", "name": "<current name>", "prompt": "…" } })` — `name` is required on every update; omitted keys, including `config`, stay untouched.
 
-**Change one table operation**: `get_ai_tool` → edit the `config.operations` you need → `save_ai_tool` with `id` and the **full `config`** (a partial `config` replaces the stored one and drops `entityId` or the other operations).
+**Change one table operation**: `get_ai_tool` → edit the `config.operations` you need → `save_ai_tool` with `id`, `name` and the **full `config`** (a partial `config` replaces the stored one and drops `entityId` or the other operations).
 
-**Change one option of any other type** — same rule, `config` is never merged. Web search, more results: `get_ai_tool` → `save_ai_tool({ "aiTool": { "id": "…", "config": { "numResults": 5, "context": true, "maxCharactersContext": 2000, "summary": false, "text": false, "maxCharactersText": 200, "includeDomains": ["docs.neptune-software.com"] } } })` — every key re-sent, one changed.
+**Change one option of any other type** — same rule, `config` is never merged. Web search, more results: `get_ai_tool` → `save_ai_tool({ "aiTool": { "id": "…", "name": "…", "config": { "numResults": 5, "context": true, "maxCharactersContext": 2000, "summary": false, "text": false, "maxCharactersText": 200, "includeDomains": ["docs.neptune-software.com"] } } })` — every key re-sent, one changed.
 
 **Rename**: `name` is the function name — keep the charset rule; agents referencing the tool by id keep working, but update agent instructions that mention the old function name.
 
@@ -220,13 +220,14 @@ list_ai_tools({ "listOptions": { "where": { "type": "TABLE", "changedBy": "playw
 |---|---|
 | `type is required` | Create without `type`. Ask the user which kind of tool, then retry. |
 | `Invalid config for tool type <TYPE>: <detail>` | `config` does not match the type's shape — unknown top-level key, wrong value type, `entityId`/`pdfId` missing, or `R` disabled while `U`/`D` enabled. Nothing was saved. |
+| `name 'undefined' already exists!` | An update without `name`. Send the tool's current `name` (from `get_ai_tool`) with every update. |
 | `name '<name>' already exists!` | Duplicate name. Update the existing tool by `id` or pick another name. |
-| Input validation error naming `["aiTool", "roles", 0, "id"]` (or similar), `Invalid uuid` | A relation id is not a UUID. Nothing was saved. |
+| Input validation error such as `Invalid uuid at aiTool.roles[0].id` | A relation id is not a UUID. Nothing was saved. |
 | `Access denied: no permission for aitool` | The MCP user lacks the `aitool` role permission (`List`/`Get`/`Save`/`Del`). |
 | `<name> is locked by <user> since <time>` | Someone has the tool open in the Cockpit. Ask them to close it, or inspect with `list_locks`. |
 | `No edit access to artifact` / `Cannot assign artifact to system package` / `Only Global Admins can assign artifacts to template packages…` / `Package is a required field` / `Your default package cannot be used: …` | Package rules — pass a package you may edit. |
 | `Not Found` on `get_ai_tool` | No tool with that id (wrong id, or already deleted). |
-| `Error saving ai_tool` | The platform refused the write without a reason — usually a relation id that does not exist. Nothing changed. |
+| `Error saving ai_tool` | The platform refused the write without a reason — usually a relation id that does not exist, or a `name` longer than 64 characters on a database that enforces the limit. Nothing changed. |
 | Agent never calls the tool | Weak or missing `prompt`; tool not in the agent's `tools`; the agent's `maxSteps` too low; the user lacks a role in the tool's `roles`; agent in `json_schema` mode. |
 | Agent Trace / system log: `Failed to create tool for <name>. Missing …` | A run-time requirement from the config table is unmet (`parameters`, `apiId`/`operationId`, `numResults`, `entityId`/`operations`, `pdfId`) or a referenced template no longer exists. Fix the config and re-save. |
 | Agent Trace: `Failed to generate tools for AI Agent` (all tools gone) | A TABLE tool without the `R` operation key. Re-save it with all four operation keys. |
