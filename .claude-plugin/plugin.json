@@ -1,7 +1,7 @@
 {
     "name": "neptune-dxp",
     "description": "MCP server bridging Claude Code to the Neptune DXP API — tables, scripts, and apps.",
-    "version": "0.0.7",
+    "version": "0.0.8",
     "author": {
         "name": "Neptune Software"
     },

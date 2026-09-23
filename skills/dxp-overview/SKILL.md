@@ -29,6 +29,9 @@ Everything in DXP is a row in a typed table. The MCP tools in this plugin expose
 | **PDF template** | pdf metadata | Drag-and-drop PDF layout built in PDF Designer, populated by server scripts or APIs at generation time. |
 | **Launchpad** | launchpad metadata | A tile/role configuration mapping users → apps. The runtime end-user surface. |
 | **Web App** | `webapp` | A code-first application where you author the HTML/JS/CSS directly, instead of App Designer's drag-and-drop UI5. |
+| **AI model** | AI model metadata | A reference to an externally deployed model (OpenAI, Anthropic, Azure OpenAI, Amazon Bedrock, Google, Mistral, DeepSeek, OpenRouter, or any OpenAI-compatible endpoint): vendor, model name, endpoint and credentials. Agents, guardrails and vectorized tables point at it. See the `manage-ai-models` skill. |
+| **AI tool** | AI tool metadata | One capability an AI agent can call — run a server script, call an API operation, search the web, read or write a table, send an email, generate a PDF, draw a chart. See the `manage-ai-tools` skill. |
+| **AI agent** | AI agent metadata | A model plus versioned instructions, optionally with AI tools, MCP connections, knowledge tables, guardrails and roles. Chat and task agents serve apps, launchpads, scripts and process flows; an **Agentic Apps** agent drives the apps of a launchpad. See the `manage-ai-agents` skill. |
 
 ## How the pieces connect
 
@@ -74,6 +77,9 @@ These are the differences that bite people who assume "it's just Node":
 | Connector | Adaptive Framework's tool for publishing data sources (tables, server scripts, Excel imports) for adaptive apps |
 | Cockpit tile group | Logical grouping of cockpit tools (Development, Design, etc.) |
 | Package | Transport/bundle container (`dev_package` table). Artifacts join a package by setting their own `package` field to its id — the package doesn't list its members. MCP tools: `list_packages`, `get_package` (returns members bucketed by type), `save_package` (only `name` is required), `delete_package` (clears members' `package` link, doesn't delete them). |
+| Naia Agent Studio | The Cockpit tile group holding Models, Agents, AI Tools, Guardrails and Agent Trace |
+| Agent Trace | Cockpit tool showing every agent request, its tool calls and guardrail outcomes (not readable over MCP) |
+| Agentic Apps | Launchpad feature where an agent flagged for it acts on and explains the apps on the user's screen |
 
 ## Related skills
 
@@ -88,6 +94,9 @@ Each major artifact segment has its own skill. Invoke the matching one when the 
 - **`manage-tables`** — table definitions (dictionary) and reading rows.
 - **`manage-process-flows`** — process flows: the graph, gateways, approvals, executions.
 - **`manage-adaptive`** — Adaptive Framework data-driven entities.
+- **`manage-ai-models`** — register the external AI models agents run on (completion and embedding).
+- **`manage-ai-tools`** — Script / API / Web Search / Table / Email / PDF / Chart capabilities for agents.
+- **`manage-ai-agents`** — build chat, structured-output and Agentic Apps agents: instructions, model, tools, guardrails, roles.
 - **`manage-npm-modules`** — install/manage third-party packages exposed as `modules.*`.
 - **`inspect-system-logs`** — read the daily server/exception/script/request/vault logs.
 - **`connection`** — inspect, connect, switch, and troubleshoot the connection to an instance.
@@ -109,6 +118,9 @@ Before using or interpreting the result of an MCP tool, load the skill that docu
 | `list_packages`, `get_package`, `save_package`, `delete_package` | `dxp-overview` |
 | `list_system_logs`, `get_system_log` | `inspect-system-logs` |
 | `list_npm_modules`, `get_npm_module`, `install_npm_module`, `uninstall_npm_module` | `manage-npm-modules` |
+| `list_ai_models`, `get_ai_model`, `save_ai_model`, `delete_ai_model`, `list_ai_vendor_settings` | `manage-ai-models` |
+| `list_ai_tools`, `get_ai_tool`, `save_ai_tool`, `delete_ai_tool` | `manage-ai-tools` |
+| `list_ai_agents`, `get_ai_agent`, `save_ai_agent`, `delete_ai_agent` | `manage-ai-agents` |
 
 Do not infer Neptune DXP behavior from MCP field names alone. Load the matching skill first, then use the tool or interpret results from the tool call.
 
