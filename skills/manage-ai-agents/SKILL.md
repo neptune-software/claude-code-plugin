@@ -111,7 +111,7 @@ Turning an existing chat agent into an Agentic Apps agent: `save_ai_agent({ "aiA
 
 ## Instructions (the system prompt)
 
-- `prompt: { "txt": "…" }` — text that differs from the newest version in `prompts[]` deactivates the active version and creates a new **active** one. Text identical to the newest version creates nothing; if that newest version is inactive (an older one was set active in the Cockpit), it is re-activated **next to** the active one — two active versions. So when the newest entry in `prompts[]` is not the active one, make your text differ from it (a trailing newline is enough). Send `txt` only, never `prompt.id` — with an id the platform can also leave two versions active. To go back to an older version, send its text (copied from `prompts[]`) as `txt`; it is stored as a new active version. Every agent should have one active version; without it the agent runs without instructions (logged as a system error).
+- `prompt: { "txt": "…" }` — new text is stored as a new version that becomes the only **active** one; every previously active version is deactivated. **Send text that matches no entry in `prompts[]`** — spaces and line breaks at the start and end do not count, the text is trimmed before it is compared. Text that matches an existing version is not reliably stored as a new one — the platform can re-activate that version **next to** the active one instead, leaving two active versions. Going back to an older instruction therefore means writing it afresh: take the old text and change a word or add a sentence, so it matches no existing version. Send `txt` only, never `prompt.id` — with an id the platform can re-activate that version next to the active one. After the save, check the response: exactly one entry in `prompts[]` has `status: "active"`, and it holds your text. Every agent should have one active version; without it the agent runs without instructions (logged as a system error).
 - Writing prompts additionally requires the `AIPrompt` role with `Save` (error `User does not have permission to edit AI Prompts`) and edit access to the prompt's package.
 - Variables: `{{variableName}}` placeholders. System variables are filled by the platform (user data such as `{{name}}`, and `{{currentTime}}`); custom variables must be supplied by the caller (`agents.<name>({ input, variables })` in scripts, the chatbox's variables). Variable names must not contain spaces.
 - `get_ai_agent` lists all versions in `prompts[]`; `currentPrompt` is the active id and `variables` its placeholders. Never send `prompts` back.
@@ -232,8 +232,7 @@ Start every update with `get_ai_agent`. Every payload carries the agent's curren
 
 | Intent | Payload |
 |---|---|
-| Change the instructions only | `{ "id": "…", "name": "…", "prompt": { "txt": "<new full text>" } }` — one new active version; nothing else touched |
-| Go back to an older instruction | `{ "id": "…", "name": "…", "prompt": { "txt": "<text copied from prompts[]>" } }` — stored as a new active version (if that text equals the newest entry and the newest entry is inactive, change it slightly — see Instructions) |
+| Change the instructions only | `{ "id": "…", "name": "…", "prompt": { "txt": "<new full text>" } }` — one new active version; nothing else touched. The text must match no existing version (see Instructions) |
 | Add a tool | `get_ai_agent` → `tools` → append → `{ "id": "…", "name": "…", "tools": [ …all ids… ] }` (and raise `config.maxSteps` if needed) |
 | Remove all tools | `{ "id": "…", "name": "…", "tools": [] }` |
 | Switch the model | `{ "id": "…", "name": "…", "model": "<other completion model id>" }` |
@@ -245,7 +244,7 @@ Start every update with `get_ai_agent`. Every payload carries the agent's curren
 
 ## End-to-end: "create an agent that can …"
 
-1. **Model**: `list_ai_models({ "listOptions": { "where": { "outputType": "text" } } })`; none suitable → register one with `manage-ai-models` (its key goes in the create call, except for the very first model on an instance).
+1. **Model**: `list_ai_models({ "listOptions": { "where": { "outputType": "text" } } })`; none suitable → register one with `manage-ai-models` (its key goes in the create call).
 2. **Tools**: one `save_ai_tool` per capability (`manage-ai-tools`): valid function name, a specific `prompt`, the full `config` (SCRIPT needs `parameters`, TABLE needs `operations`). Keep the returned ids.
 3. **Agent**: `save_ai_agent` with `name` (no spaces), `model`, `prompt.txt`, `tools [{id}]`, optional `config.maxSteps` (5 when unset) and `roles`/`package`/guardrails.
 4. **Verify**: read the save response or `get_ai_agent`: `tools` lists your ids, `currentPrompt` is set, `config` shows the merged values, `modelObj.name` is the intended model.
@@ -287,6 +286,7 @@ Start every update with `get_ai_agent`. Every payload carries the agent's curren
 | Agent answers but never uses its tools | `maxSteps` set to 1, `response_format` is `json_schema`, the tool's `prompt` is weak, the user lacks the tool's roles, or a `TABLE` tool without the `R` operation key broke tool generation (Agent Trace: `Failed to generate tools for AI Agent`). |
 | Guardrails vanished after an update | The save omitted `inputGuardrails` / `outputGuardrails`. Re-send both arrays. |
 | Agent runs without instructions (Agent Trace: `No active prompt found`) | No active prompt version — send `prompt.txt`. |
+| Two entries in `prompts[]` are `active` | Send `prompt.txt` with text that matches no existing version — the save deactivates both and leaves only the new one active. |
 | Launchpad with Agentic Apps enabled fails every turn | The selected agent lacks `enableIntelligentApps: true`, or its `response_format` is not `text`. |
 
 ## What MCP can NOT do (route to the Cockpit or another skill)
