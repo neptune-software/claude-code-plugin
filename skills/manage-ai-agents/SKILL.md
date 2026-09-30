@@ -286,7 +286,7 @@ Start every update with `get_ai_agent`. Every payload carries the agent's curren
 | Agent answers but never uses its tools | `maxSteps` set to 1, `response_format` is `json_schema`, the tool's `prompt` is weak, the user lacks the tool's roles, or a `TABLE` tool without the `R` operation key broke tool generation (Agent Trace: `Failed to generate tools for AI Agent`). |
 | Guardrails vanished after an update | The save omitted `inputGuardrails` / `outputGuardrails`. Re-send both arrays. |
 | Agent runs without instructions (Agent Trace: `No active prompt found`) | No active prompt version — send `prompt.txt`. |
-| Two entries in `prompts[]` are `active` | Send `prompt.txt` with text that matches no existing version — the save deactivates both and leaves only the new one active. |
+| Two entries in `prompts[]` are `active` (`currentPrompt` may point at the older one, so the agent can answer with old instructions) | Send `prompt.txt` with text that matches no existing version — the save deactivates both and leaves only the new one active. |
 | Launchpad with Agentic Apps enabled fails every turn | The selected agent lacks `enableIntelligentApps: true`, or its `response_format` is not `text`. |
 
 ## What MCP can NOT do (route to the Cockpit or another skill)
