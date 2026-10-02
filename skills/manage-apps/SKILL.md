@@ -69,6 +69,23 @@ If `get_app` opens an app but Launchpad users report it's stale or missing, the 
 - **Auto fields are read-only in practice** — `id`, `ver`, `createdAt`/`updatedAt`/`createdBy`/`changedBy`. Don't hand-set them; activation owns `ver`.
 - **`delete_app` can be blocked** by `has_i18n_enhancements` (the app has translation enhancements) — the error carries an explanatory message.
 - **App resources are client-side.** App Designer "JavaScript" runs in the browser as UI5 controller code — it is NOT a server script. Don't confuse the two (see `dxp-overview`).
+- **Agentic Apps settings live on the app.** `disableIntelligence` (default `false` = the app is agentic) and `iaSettings.denylist` (controls the agent must leave to the user). `AGENTS.md` files and custom tools are objects in the tree. Read the `agentic-apps` skill before touching any of them.
+
+## The object tree (`objects`)
+
+`get_app.objects` is a flat array encoding the App Designer tree; `save_app` replaces it whole. Each entry:
+
+| Key | Meaning |
+|---|---|
+| `fieldNo` | The object's id (UUID string), unique in the app |
+| `fieldParent` | The parent's `fieldNo`, or a numeric root: `0` under the root control, `99999` = Scripts/resources, `99998` = Files (Files-group objects are moved out of the tree at activation). Numbers, not strings |
+| `fieldPos` | Integer position, unique in the app, parent before child; gaps are normal. New objects take `max + 1` |
+| `fieldType` | UI5 class (`sap.m.Page`) or Neptune type (`neptune.Script`, `neptune.Markdown`, `neptune.model`, `neptune.folder`, `neptune.BarContent`) |
+| `script` | Content of Script / Markdown / text objects |
+| `attributes` | `[{ attribute, grouping: "Properties" \| "Events", value, script, translation }]` — `text`, `title` and event handlers such as `press` live here |
+| `request`, `response` | Data-binding definitions; leave as read |
+
+To add an object: read the app, append `{ fieldNo: <new uuid>, fieldName, fieldParent: <parent fieldNo or root>, fieldPos: max + 1, fieldType, script, request: [], response: [], attributes: [] }`, send the **complete** `objects` back with `id`, `application`, `appType`, `title` and `description`, then `activate_app`. Omitting `objects` fails the save; sending a partial array deletes the rest.
 
 ## Discovery flow
 
@@ -86,3 +103,4 @@ All five tools require the `appdesigner` role: `List` (`list_apps`), `Get`, `Sav
 - **`dxp-overview`** — what an app is and how it connects to APIs, scripts, and the Launchpad.
 - **`manage-webapps`** — code-first React/Vue apps, the alternative to App Designer.
 - **`manage-adaptive`** — data-driven Adaptive apps (`appType: "F"`).
+- **`agentic-apps`** — make an app work well with the Agentic Apps agent: description, `AGENTS.md` files, custom tools, opt-out, denylist.
