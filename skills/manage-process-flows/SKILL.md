@@ -98,7 +98,9 @@ This node does not point at a table definition directly — it points at the **A
 }
 ```
 
-`roles` and `users` are uuids, not names. `taskActions` entries are `{ id, title, value }` — `title` is the button label, `value` is what the branch condition downstream compares against. At least one approver and one action are required, and the flow will sit pending forever if the approver group is empty of anyone real.
+`roles` and `users` are uuids, not names. `taskActions` entries are `{ id, title, value }` — `title` is the button label, `value` is what the branch condition downstream compares against. At least one approver and one action are required. An approver group with no non-blank id fails validation, so the flow can't run.
+
+If the roles the task needs don't exist yet, put the current user's id (from `list_users`) in `approverGroup.users` as a placeholder and tell the user to set the real approvers in the designer.
 
 ## Edges and handles
 
