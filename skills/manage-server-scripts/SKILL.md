@@ -97,7 +97,7 @@ The raw fallback `p9.manager.query(sql, params)` exists but is a **last resort**
 - **`list_ungrouped_scripts` returns metadata only** (id, name, description, changedBy, createdAt, updatedAt, useAsGlobalScript, jsscriptGroup, ver) — no `content`. Use `get_server_script({ id })` to get the source.
 - **Global scripts** (`useAsGlobalScript: true`) are callable from other scripts. That `useAsGlobalScript` flag is shown in listings but isn't settable via `save_server_script` (no parameter for it) — set it in the Script Editor. (Distinct from the `globalScripts` array, which links the *other* global scripts this script calls.)
 - **Entity sets bind by table *name***, not id — renaming a table silently breaks every script that links it under the old name. Re-save the affected scripts with the new name.
-- **Also in the script context** (beyond the linked accessors): `log` (the platform script logger — prefer it over `console`; output lands in the script logs, see inspect-system-logs), `sendEmail`, `uuid()`, `vault.decrypt`, and `p9.runScript({ id } | { project, name }, payload)` to call another script and get its `result.data` back.
+- **Also in the script context** (beyond the linked accessors): `log` (the platform script logger — prefer it over `console`; output lands in the script logs, see inspect-system-logs), `sendEmail`, `uuid()`, `vault.decrypt('<keyId>')` (see manage-vault), and `p9.runScript({ id } | { project, name }, payload)` to call another script and get its `result.data` back.
 
 ## Discovery flow
 

@@ -100,6 +100,7 @@ Each major artifact segment has its own skill. Invoke the matching one when the 
 - **`agentic-apps`** — make an App Designer app work well with Agentic Apps: the app description the launchpad agent routes on, `AGENTS.md` files, custom tools (`neptune.ia.registerTools`), opt-out and denylist.
 - **`manage-npm-modules`** — install/manage third-party packages exposed as `modules.*`.
 - **`inspect-system-logs`** — read the daily server/exception/script/request/vault logs.
+- **`manage-vault`** — store and generate secrets, and use them from scripts (`vault.decrypt`) and API auth headers.
 - **`connection`** — inspect, connect, switch, and troubleshoot the connection to an instance.
 
 ## MCP tool skill routing
@@ -118,6 +119,7 @@ Before using or interpreting the result of an MCP tool, load the skill that docu
 | `list_processflows`, `get_processflow`, `save_processflow`, `delete_processflow`, `run_processflow`, `list_processflow_executions`, `get_processflow_execution`, `stop_processflow_execution`, `list_assigned_processflow_user_tasks`, `get_processflow_user_task`, `continue_processflow_user_task` | `manage-process-flows` |
 | `list_packages`, `get_package`, `save_package`, `delete_package` | `dxp-overview` |
 | `list_system_logs`, `get_system_log` | `inspect-system-logs` |
+| `list_vault_secrets`, `get_vault_secret`, `save_vault_secret`, `delete_vault_secret` | `manage-vault` |
 | `list_npm_modules`, `get_npm_module`, `install_npm_module`, `uninstall_npm_module` | `manage-npm-modules` |
 | `list_ai_models`, `get_ai_model`, `save_ai_model`, `delete_ai_model`, `list_ai_vendor_settings` | `manage-ai-models` |
 | `list_ai_tools`, `get_ai_tool`, `save_ai_tool`, `delete_ai_tool` | `manage-ai-tools` |

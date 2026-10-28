@@ -9,15 +9,18 @@ An API artifact is a configuration record managed by the platform. Depending on 
 
 ## The three API types
 
-| `apiType` | What it is | `endpoint` value (the identity, not a free choice) | Served at |
-|---|---|---|---|
-| `"script"` | Server-script backed API | `/api/serverscript/<slug>` — slug = name lowercased, spaces and `/` removed. With `isPublic: true`: `/public/serverscript/<slug>` | `<endpoint>/<operation>` |
-| `""` or `null` | External HTTP API (proxy config) | The upstream base URL, absolute with protocol (`https://api.example.com/v1`) | `/proxy/<encoded upstream URL>/<apiId>` |
-| `"table"` | Table CRUD API | Always exactly `/api/entity` | `/api/entity/<tableName>` |
+| `apiType` | What it is | `endpoint` value (the identity, not a free choice) | `apiFormat` | Served at |
+|---|---|---|---|---|
+| `"script"` | Server-script backed API | `/api/serverscript/<slug>` — slug = name lowercased, spaces and `/` removed. With `isPublic: true`: `/public/serverscript/<slug>` | `1` | `<endpoint>/<operation>` |
+| `""` or `null` | External HTTP API (proxy config) | The upstream base URL, absolute with protocol (`https://api.example.com/v1`) | `1` | `/proxy/<encoded upstream URL>/<apiId>` |
+| `"table"` | Table CRUD API | Always exactly `/api/entity` | **`0` (required)** | `/api/entity/<tableName>` |
 
-**`apiType` and `apiFormat` are chosen at creation and NEVER changed afterwards.** The Cockpit provides no way to change them once created. `save_api` will *not* stop you — a flip persists silently (verified) and produces an unsupported, inconsistent artifact (paths bound to scripts on a "proxy" API, wrong doc generation, broken designer UI). If an API has the wrong type: create a new API with the right type, migrate the paths/definitions, then delete the old one. Never recommend or attempt an in-place type or format change.
+**`apiType` and `apiFormat` are chosen at creation and NEVER changed afterwards.** The Cockpit provides no way to change them once created. Newer servers reject the change once the API has paths or definitions (`apiType cannot be changed ...` / `apiFormat cannot be changed ...`); older servers persist the flip silently (verified), which produces an unsupported, inconsistent artifact (paths bound to scripts on a "proxy" API, wrong doc generation, broken designer UI). If an API has the wrong type: create a new API with the right type, migrate the paths/definitions, then delete the old one. Never recommend or attempt an in-place type or format change.
 
-**`apiFormat`**: `0` = Swagger 2, `1` = OpenAPI 3. It selects the spec-generation branch and designer editors. **Always set `apiFormat: 1` for new APIs** (the Cockpit does; the default is 0 for legacy reasons, and the Swagger 2 branch depends on metadata MCP cannot write — see Definitions below).
+**`apiFormat`**: `0` = Swagger 2, `1` = OpenAPI 3. It selects the spec-generation branch and designer editors. Set it explicitly on every create, by type:
+- **`"table"` → always `apiFormat: 0`.** The Cockpit forces Swagger 2 for table APIs and locks the selector. Newer servers reject a table API with any other format (`A table API must use apiFormat 0 (Swagger 2.0)`); older servers accept it and create an OpenAPI table API that the Cockpit doesn't support.
+- **`"script"` and `""` (external) → `apiFormat: 1`.** The Cockpit defaults these to OpenAPI 3, and the Swagger 2 branch depends on nesting metadata MCP cannot write (see Definitions below). Table definitions are flat, so Swagger 2 has no such problem for table APIs.
+- Omitting `apiFormat` stores `0`, which is correct only for table APIs.
 
 ## Tools
 
@@ -39,9 +42,9 @@ An API artifact is a configuration record managed by the platform. Depending on 
 | Array key **present** | **Replaced wholesale** — never merged. To change one path, send *all* paths with one modified (see Workflows). |
 | Unknown/read-only key | **Silently stripped, no error** (verified). See the strip list below — this is the #1 source of "my save didn't work". |
 
-- **Upsert trap**: an `id` that doesn't exist **creates** a new record carrying that id (verified). A stale or guessed id never fails "not found" — it makes a ghost. Confirm with `get_api` when you intend update-only.
+- **Unknown `id`**: newer servers reject the save with `API '<id>' not found`. Older servers **create** a new record carrying that id (verified), so a stale or guessed id makes a ghost instead of failing. Either way, confirm with `get_api` when you intend update-only.
 - **No duplicate-name guard** (verified: two APIs with the same name saved fine). The Cockpit checks separately; MCP does not. Since script-API runtime lookup can fall back to matching by *name*, duplicates cause ambiguous routing. Always check `list_apis` for the name before creating.
-- **No endpoint validation**: MCP accepts a proxy endpoint without `http(s)://` (verified). The Cockpit validates this client-side; a protocol-less external endpoint later breaks doc generation ("Protocol for api endpoint is missing").
+- **Create-time validation**: newer servers check creates against the type's rules and return each failing field in one message: `name` required; table endpoint exactly `/api/entity`; script endpoint exactly the slug formula (public variant when `isPublic: true`); external endpoint empty or starting with `http://`/`https://`. Updates are not re-checked against these rules, except that every save of an existing external API must leave it with an `http://`/`https://` endpoint, as in the Cockpit (`Endpoint URL must contain http:// or https://`). Older servers accept anything (verified: a proxy endpoint without `http(s)://` saved fine), and a protocol-less external endpoint later breaks doc generation ("Protocol for api endpoint is missing"). Follow the rules regardless of server version.
 - **Server-managed fields**: `id` (on create), `ver` (datestamp like `26.07.17.1546`, regenerated every save), `createdBy`/`changedBy`, `createdAt`/`updatedAt`. Don't send them; sending is harmless (stripped or overwritten).
 - **Nested ids are required and client-generated**: every `paths[]` and `definitions[]` item needs `"id": "<uuid v4>"` — generate one per item. Missing id → clear validation error (`api.paths.0.id Required`), nothing is saved. Path ids are uppercased server-side, definition ids keep their case — compare case-insensitively when matching after read.
 - Limits: `name` ≤ 64, `endpoint` ≤ 128, `description` ≤ 1024. `method` ∈ `GET POST PUT PATCH TRACE OPTIONS HEAD DELETE CONNECT`.
@@ -140,7 +143,17 @@ save_api({ "api": {
 
 ## Table APIs (`apiType: "table"`)
 
-Endpoint is always `/api/entity`; runtime CRUD is served at `/api/entity/<tableName>` and is **gated by the table's own read/write role settings, not by the API artifact's roles**. The artifact provides docs/clients: paths `GET|PUT|POST|DELETE /<tableName>` + `GET /<tableName>/count`, a flat definition mirroring the table fields, plus `Error` and `count` definitions. The Cockpit's "Import Table" scaffolds all of this; MCP has no scaffolding method — either scaffold in the Cockpit, or replicate that exact shape by hand from `get_table` field data. GET supports query params `where` / `select` / `take` / `skip` / `order` with TypeORM-style operators in `where` (`Not(x)`, `Between(1,10)`, `In([...])`, `Like(x)`, `LessThan(x)`, `IsNull()`, ...).
+```json
+save_api({ "api": {
+  "name": "orders",
+  "endpoint": "/api/entity",
+  "apiType": "table",
+  "apiFormat": 0,
+  "description": "Orders table API"
+}})
+```
+
+Endpoint is always `/api/entity` and `apiFormat` is always `0` (Swagger 2) — never `1`. Runtime CRUD is served at `/api/entity/<tableName>` and is **gated by the table's own read/write role settings, not by the API artifact's roles**. The artifact provides docs/clients: paths `GET|PUT|POST|DELETE /<tableName>` + `GET /<tableName>/count`, a flat definition mirroring the table fields, plus `Error` and `count` definitions. The Cockpit's "Import Table" scaffolds all of this; MCP has no scaffolding method — either scaffold in the Cockpit, or replicate that exact shape by hand from `get_table` field data. GET supports query params `where` / `select` / `take` / `skip` / `order` with TypeORM-style operators in `where` (`Not(x)`, `Between(1,10)`, `In([...])`, `Like(x)`, `LessThan(x)`, `IsNull()`, ...).
 
 ## Access control on calls
 
@@ -177,6 +190,10 @@ Endpoint is always `/api/entity`; runtime CRUD is served at `/api/entity/<tableN
 | `Input validation error ... "path": ["api","paths",0,"id"] "Required"` | Nested item missing its uuid `id` (or enum/format violation — the path pinpoints it). Nothing was saved. |
 | `Access denied: no permission for apidesigner` | MCP user lacks the `apidesigner` role permission (List/Get/Save/Del respectively). |
 | `Not Found` on `get_api` | No API with that id (deleted or wrong id). |
+| `API '<id>' not found` on `save_api` | Update with an id that doesn't exist. Drop the `id` to create, or fix it via `list_apis`. |
+| `A table API must use apiFormat 0 (Swagger 2.0)` | Table API sent with `apiFormat: 1` (or switched to it). Resend with `apiFormat: 0`. |
+| `apiType cannot be changed ...` / `apiFormat cannot be changed ...` | Tried to flip type or format on an API that has paths or definitions. Create a new API with the right type instead (see above). |
+| `endpoint: ...` / `name: Name is required` on create | Create-time rule for that `apiType` failed; the message states the expected value (e.g. the exact script endpoint). |
 | `No access to artifact` / package error on save | The target dev package is role-protected, or the instance enforces package-required policy — supply an accessible `package` id. |
 | Saved field missing from the save response | It's a stripped field (see list) — use the Cockpit for it. |
 | `{"status": "Server Script not set in Operation"}` at runtime | Path matched but `serverScript` is empty — set the script id on that path. |
@@ -186,7 +203,7 @@ Endpoint is always `/api/entity`; runtime CRUD is served at `/api/entity/<tableN
 
 ## What MCP can NOT do (route to the Cockpit, don't improvise)
 
-- Change `apiType`/`apiFormat` after creation (technically possible, **forbidden** — corrupts the artifact).
+- Change `apiType`/`apiFormat` after creation (rejected by newer servers once the API has content, silently accepted by older ones; **forbidden** either way — corrupts the artifact).
 - Assign/remove **roles**; set `enableScriptEditor` or `documentation`.
 - Property-level `reference`s and nested definition trees that export correctly; parameter `type`.
 - Import an OpenAPI/Swagger spec (Cockpit: API Designer → import; then refine over MCP, minding the round-trip hazard).
