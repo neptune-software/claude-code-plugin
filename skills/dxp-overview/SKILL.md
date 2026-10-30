@@ -31,6 +31,7 @@ Everything in DXP is a row in a typed table. The MCP tools in this plugin expose
 | **Web App** | `webapp` | A code-first application where you author the HTML/JS/CSS directly, instead of App Designer's drag-and-drop UI5. |
 | **AI model** | AI model metadata | A reference to an externally deployed model (OpenAI, Anthropic, Azure OpenAI, Amazon Bedrock, Google, Mistral, DeepSeek, OpenRouter, or any OpenAI-compatible endpoint): vendor, model name, endpoint and credentials. Agents, guardrails and vectorized tables point at it. See the `manage-ai-models` skill. |
 | **AI tool** | AI tool metadata | One capability an AI agent can call — run a server script, call an API operation, search the web, read or write a table, send an email, generate a PDF, draw a chart. See the `manage-ai-tools` skill. |
+| **Remote System** | `systems` | A saved connection to another backend (SAP, Open Edition, SAP Integration Hub, MCP server, any HTTP service): URL, type, role, per-role endpoints and authentication. SAP systems can feed AI Context Hub, which ingests SAP service metadata for AI agents. See the `manage-remote-systems` skill. |
 | **AI agent** | AI agent metadata | A model plus versioned instructions, optionally with AI tools, MCP connections, knowledge tables, guardrails and roles. Chat and task agents serve apps, launchpads, scripts and process flows; an **Agentic Apps** agent drives the apps of a launchpad. See the `manage-ai-agents` skill. |
 
 ## How the pieces connect
@@ -100,6 +101,7 @@ Each major artifact segment has its own skill. Invoke the matching one when the 
 - **`agentic-apps`** — make an App Designer app work well with Agentic Apps: the app description the launchpad agent routes on, `AGENTS.md` files, custom tools (`neptune.ia.registerTools`), opt-out and denylist.
 - **`manage-npm-modules`** — install/manage third-party packages exposed as `modules.*`.
 - **`inspect-system-logs`** — read the daily server/exception/script/request/vault logs.
+- **`manage-remote-systems`** — connect SAP, Open Edition, Integration Hub, MCP and HTTP systems, configure AI Context Hub ingestion, and inspect ingested SAP services. Credentials stay in the UI.
 - **`connection`** — inspect, connect, switch, and troubleshoot the connection to an instance.
 
 ## MCP tool skill routing
@@ -118,6 +120,7 @@ Before using or interpreting the result of an MCP tool, load the skill that docu
 | `list_processflows`, `get_processflow`, `save_processflow`, `delete_processflow`, `run_processflow`, `list_processflow_executions`, `get_processflow_execution`, `stop_processflow_execution`, `list_assigned_processflow_user_tasks`, `get_processflow_user_task`, `continue_processflow_user_task` | `manage-process-flows` |
 | `list_packages`, `get_package`, `save_package`, `delete_package` | `dxp-overview` |
 | `list_system_logs`, `get_system_log` | `inspect-system-logs` |
+| `list_remote_systems`, `get_remote_system`, `save_remote_system`, `delete_remote_system`, `test_remote_system_connection`, `import_remote_mcp_tools`, `get_ai_context_hub_config`, `save_ai_context_hub_config`, `browse_sap_sources`, `start_ai_context_hub_ingestion`, `get_ai_context_hub_ingestion_status`, `list_sap_services`, `get_sap_service` | `manage-remote-systems` |
 | `list_npm_modules`, `get_npm_module`, `install_npm_module`, `uninstall_npm_module` | `manage-npm-modules` |
 | `list_ai_models`, `get_ai_model`, `save_ai_model`, `delete_ai_model`, `list_ai_vendor_settings` | `manage-ai-models` |
 | `list_ai_tools`, `get_ai_tool`, `save_ai_tool`, `delete_ai_tool` | `manage-ai-tools` |
