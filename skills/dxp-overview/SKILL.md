@@ -88,6 +88,7 @@ Each major artifact segment has its own skill. Invoke the matching one when the 
 
 - **`search-docs`** — search the public DXP documentation when you need detail on a feature or to look up an error.
 - **`manage-apps`** — App Designer applications (UI5). Includes the save → `activate` publish cycle.
+- **`naia-build`** — have Naia Build, the AI agent inside App Designer, build or change an app from a description. Needs an App Designer tab open in the user's browser.
 - **`manage-webapps`** — code-first React/Vue web apps.
 - **`manage-server-scripts`** — author/organize server scripts and script projects.
 - **`run-server-script`** — execute a server script directly by id via MCP.
@@ -112,6 +113,7 @@ Before using or interpreting the result of an MCP tool, load the skill that docu
 | If you use these MCP tools | First read this skill |
 |---|---|
 | `list_apps`, `get_app`, `save_app`, `activate_app`, `delete_app` | `manage-apps` |
+| `naia_build_status`, `naia_build_start`, `naia_build_wait`, `naia_build_answer`, `naia_build_cancel` | `naia-build` |
 | `list_webapps`, `get_webapp`, `save_webapp`, `delete_webapp` | `manage-webapps` |
 | `list_apis`, `get_api`, `save_api`, `delete_api` | `manage-apis` |
 | `list_script_projects`, `get_script_project`, `create_script_project`, `delete_script_project`, `list_ungrouped_scripts`, `get_server_script`, `save_server_script`, `delete_server_script` | `manage-server-scripts` |
