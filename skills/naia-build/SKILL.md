@@ -1,6 +1,6 @@
 ---
 name: naia-build
-description: Build or change a Neptune DXP App Designer app with Naia Build, the AI agent inside App Designer, via the MCP tools `naia_build_status`, `naia_build_start`, `naia_build_wait`, `naia_build_answer`, `naia_build_cancel`. Use when the user wants an app designed, extended or restyled from a description rather than by editing its definition with `save_app`. Trigger phrases include "use Naia Build", "let Naia build it", "build the app with Naia", "ask Naia to add", "generate the app with AI", "have the AI design the screen". Read this before the first `naia_build_*` call; the browser tab it needs is the step everyone trips on.
+description: Build or change a Neptune DXP App Designer app with Naia Build, the AI agent inside App Designer, via the MCP tools `naia_build_status`, `naia_build_start`, `naia_build_wait`, `naia_build_answer`, `naia_build_cancel`, `naia_build_screenshot`. Use when the user wants an app designed, extended or restyled from a description rather than by editing its definition with `save_app`. Trigger phrases include "use Naia Build", "let Naia build it", "build the app with Naia", "ask Naia to add", "generate the app with AI", "have the AI design the screen". Read this before the first `naia_build_*` call; the browser tab it needs is the step everyone trips on.
 ---
 
 # Building apps with Naia Build via MCP
@@ -15,15 +15,16 @@ follows from that.
 
 ## The flow
 
-1. **`naia_build_status`** first, every time. It tells you whether a tab is ready, which
-   application it has open, and whether a job is already running.
-2. **No tab?** The error gives the exact App Designer URL for this server. Open it for the
-   user (`xdg-open`, `open` or `start` with the URL) or ask them to. The user signs in to
-   Neptune as the same user this MCP connection uses; the error names that user. The first
-   time, Naia Build also asks for a Neptune portal sign-in inside the tab. Then call
-   `naia_build_status` again. The tab has to stay open for the whole build.
-3. **New app?** Create it with `save_app` first (`application` and `appType: "A"` at
+1. **New app?** Create it with `save_app` first (`application` and `appType: "A"` at
    minimum, see `manage-apps`). `naia_build_start` only opens applications that exist.
+2. **`naia_build_status`**. It tells you whether a tab is ready, which application it has
+   open, and whether a job is already running.
+3. **No tab?** The error gives the App Designer URL for this server. Add
+   `?application=<name>` so the tab opens on the app and the user can watch Naia Build work
+   in it, then open it for the user (`xdg-open`, `open` or `start` with the URL) or ask them
+   to. The user signs in to Neptune as the same user this MCP connection uses; the error
+   names that user. The first time, Naia Build also asks for a Neptune portal sign-in inside
+   the tab. Then call `naia_build_status` again. The tab has to stay open for the whole build.
 4. **`naia_build_start`** with the `prompt` and, unless the tab already has the right app
    open, the `app` name. The tab switches the app into edit mode on its own. If the tab
    has unsaved changes the start is refused; the user saves or discards them in App
@@ -37,13 +38,14 @@ follows from that.
 |---|---|---|
 | `running` | Still working | `naia_build_wait` again with `lastSeq` |
 | `waiting_for_answer` | Naia Build asked a question; `questions` holds it and the offered options | Decide, or ask the user, then `naia_build_answer` with one of the offered options and wait again. If the user answers in the tab instead, the job carries on by itself |
-| `needs_browser` | Something only the user can do in the tab: the Neptune portal sign-in, choosing a model (the included Foundational Model or a personal API key), a billing source, a consent prompt | Tell the user exactly what the event text says, then wait again; it resumes by itself once resolved |
+| `needs_browser` | Something only the user can do in the tab: the Neptune portal sign-in, a billing source, a consent prompt. If no API key is set up the included Foundational Model is picked for you, and an event says so | Tell the user exactly what the event text says, then wait again; it resumes by itself once resolved |
 | `done` | Finished; `response` has Naia Build's summary, `artifacts` any links it produced | Report back, then verify (below) |
 | `error` | Could not start or finish; the last event says why | Fix the cause, start again |
 | `cancelled` | Stopped with `naia_build_cancel` | Nothing |
 
-`naia_build_cancel` frees the tab for a new start. Naia Build itself may still be
-finishing in the browser; the user sees that in the tab.
+`naia_build_cancel` stops Naia Build's work in the tab and frees it for a new start. If it
+returns an error, Naia Build is still working and the job is still active; try again or
+ask the user to stop it in the tab.
 
 ## Writing the prompt
 
@@ -58,6 +60,12 @@ everything it needs in the prompt:
 - Say what should happen on failure ("show an error message") or Naia Build decides.
 
 ## After a build
+
+`naia_build_screenshot` returns a picture of the app in Naia Build's preview pane. It is a
+rough representation of how the page looks: good for layout and content, not for colours
+or fine styling. The preview has to be open, and a picture taken during a build can be
+blank, so take it after `done`. If it fails the error says whether retrying is worthwhile;
+it never affects the build.
 
 Naia Build saves the app in App Designer. Confirm with `get_app`, and if the user wants to
 run it, `activate_app` pushes the design to runtime (see `manage-apps`). The user can also
