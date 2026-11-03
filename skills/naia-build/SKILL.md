@@ -67,6 +67,10 @@ or fine styling. The preview has to be open, and a picture taken during a build 
 blank, so take it after `done`. If it fails the error says whether retrying is worthwhile;
 it never affects the build.
 
+Do not take Naia Build's `done` and summary as proof that the app works: it can report
+success on a form that only pretends to save. Read the result with `get_app`, and check
+that anything meant to persist really calls an API or table.
+
 Naia Build saves the app in App Designer. Confirm with `get_app`, and if the user wants to
 run it, `activate_app` pushes the design to runtime (see `manage-apps`). The user can also
 keep working in the same App Designer tab; the next `naia_build_start` picks up the app as
