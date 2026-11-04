@@ -135,7 +135,7 @@ Turning an existing chat agent into an Agentic Apps agent: `save_ai_agent({ "aiA
 | `compactionConfig` | `{ "enabled": true, "contextWindowTokens": 10000–2000000, "thresholdPercentage": 10–95, "modelId": "<model id>" }` | Summarizes older messages when usage reaches the threshold. All three values are required when `enabled` is true (`modelId is required when compaction is enabled`, …). |
 | `preScript` | server script id | Pre-processing script (see Instructions). |
 | `dailyUserTokenLimit` | integer | Daily token cap per user for this agent (Guardrails tab: "Daily User Token Rate"). Omit or `null` for none. |
-| `onlyMetadata` | boolean | "Hide log content": Agent Trace stores metadata only. |
+| `onlyMetadata` | boolean | "Hide log content": traces of turns that run while it is on come back without input, answer, steps, files and knowledge hits; variables, the filled-in instructions, structured output and errors stay readable (`inspect-agent-traces`). |
 | `enableHybridTools` | boolean | A2A "Task & artifact tools". With `openTasksInPromptLimit` (default 10) and `continueTasksAfterDisconnect`; `pauseExpirySeconds` (default 86400) for paused delegations. |
 | `selectedRemoteMCPTool` | `{ "<remote system id>": ["toolName", …] }` | Which imported tools of each remote MCP connection the agent may use. |
 | `exposeCard`, `publicCard`, `exposeToolsAsSkills`, `skills[]`, `provider` | booleans / `[{ id, name, description, tags[], examples[], inputModes[], outputModes[], security[] }]` / `{ organization, url }` | Connectivity (A2A agent card): expose the card, expose it without authentication, list tools as skills, hand-written skills, provider info. Descriptive only. |
@@ -291,7 +291,7 @@ Start every update with `get_ai_agent`. Every payload carries the agent's curren
 
 ## What MCP can NOT do (route to the Cockpit or another skill)
 
-- Run or test the agent, read Agent Trace, or set streaming.
+- Run or test the agent, or set streaming. Read its traces with `inspect-agent-traces`.
 - Create external (A2A) agents or force a card refresh.
 - Create or list guardrails, roles, Remote Systems (remote MCP connections) or SAP data sources — only reference their ids.
 - Wire the agent into a launchpad (chat agent or Agentic Apps agent) or an app — Launchpad tool / App Designer; process flows use `agentTask` nodes (`manage-process-flows`); scripts link it via `save_server_script.agents` (`manage-server-scripts`).
