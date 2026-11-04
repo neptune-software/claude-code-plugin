@@ -215,7 +215,8 @@ MCP cannot run the agent. Give the developer this list, filled in with the real 
 
 ## What MCP cannot do here
 
-- Run the agent, read Agent Trace, or see the browser console: the developer runs step 7.
+- Run the agent or see the browser console: the developer runs step 7. Read its turns with
+  `inspect-agent-traces` (`triggeredFrom` `agentic-apps`).
 - Bind an agent to a launchpad or add a Chatbox to an app: Cockpit only (`manage-ai-agents` covers the
   agent's own *Enable use with Agentic Apps* flag).
 - Place files in an Adaptive app: no object tree; coach its template app.
