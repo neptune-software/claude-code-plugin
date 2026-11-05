@@ -30,7 +30,7 @@ An update merges what you send into the stored group: send `id` plus the fields 
 | `tilegroups` | Child groups, `[{ id }]` in display order; same replace rule. **A nonexistent id is dropped silently** (verified) — compare the response with what you sent. Cycles (a group inside itself) are not refused (verified): never create one. |
 | `navbarGroups`, `sidebarGroups` | Groups shown in a navbar column (left) or sidebar column (right) next to this group, `[{ id }]` in order; same replace rule. A nonexistent id fails the save with `Error saving category` (verified; unlike `tilegroups`). |
 | `roles` | `[{ "id": "<role id>" }]`; present = replaced, absent = kept, `[]` = cleared; a nonexistent id fails with `Error saving category` (verified). |
-| `configMessage` | `{ type, text, icon, action, showCloseButton, showIcon }` — `type` `Error`, `Information`, `Success`, `Warning`, `None`; `text` simple HTML; `action` a URL. Shown while `enableMessage` is `true`. **One value: send the complete object** (`{ "text": "…" }` alone drops the rest, verified). Remove: `enableMessage: false` + `configMessage: {}` (`null` fails, verified). **`formatter` is dropped** (verified), so any `configMessage` save deletes a formatter set in the Cockpit. |
+| `configMessage` | `{ type, text, icon, action, showCloseButton, showIcon, formatter }` — `type` `Error`, `Information`, `Success`, `Warning`, `None`; `text` simple HTML, in which placeholders such as `{i18n.<model>>key}` are bound; `action` a URL; `formatter` optional JavaScript that builds the shown text from the bound values (reference/settings.md → Information tab). Shown while `enableMessage` is `true`. **One value: send the complete object, including an existing `formatter`** (`{ "text": "…" }` alone drops the rest, verified). Remove: `enableMessage: false` + `configMessage: {}` (`null` fails, verified). |
 | `translation` | Deprecated; use i18n bindings in `title` / `subTitle`. |
 | `tilesOrder`, `tilegroupsOrder`, `navbarGroupOrder`, `sidebarGroupOrder` | **Never send these** — the order comes from the relation arrays. Sent alone they break `get_tile_group` (`Error fetching category`) and, for tiles/child groups, the launchpad page (HTTP 500) until you re-send the matching array (verified; Repair). |
 
@@ -146,7 +146,6 @@ Filterable and sortable: `name`, `title`, `description`, `roleTag`, `package`, `
 - Mark a group as a Cockpit tile group safely: `cockpitTileGroup: true` is accepted, but a Cockpit group without roles shows its tiles to every Cockpit user — do it in the Cockpit.
 - Render the launchpad: pixels need a signed-in browser (Verify).
 - Warn about cycles, dropped child ids or an empty group that is still used — check with `get_tile_group`.
-- Set or keep a message-text formatter: `configMessage.formatter` is dropped, and a `configMessage` save deletes one set in the Cockpit.
 - Make a group wider than the launchpad content column (Designer `SHELL_WIDTH`, `manage-launchpads`).
 - Align or style the group header from group fields — header alignment, colours and text size are Launchpad Designer keys or custom CSS (`manage-launchpads`).
 
