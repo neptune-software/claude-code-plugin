@@ -111,11 +111,28 @@ Lists are filtered by `search` and capped at 200 items (`truncated: true` means 
 4. **Discover.** `browse_sap_sources({ id, source: "overview", search: "purchase" })`. If `contextHubMissing` is true, the SAP side lacks the AI Context Hub transport. Then look up function modules and business objects as needed.
 5. **Pick models.** Use `list_ai_models` (see `manage-ai-models`) to find an embedding model, and create one if none exists.
 6. **Configure.** `save_ai_context_hub_config({ id, activate: true, embeddingModel, ingestOnlyApplicationComponents: [...], ingestOnlyServices: ["API_PURCHASEORDER_PROCESS_SRV"], ingestOnlyBusinessObjects: ["BUS2012"] })`. Resolve every `warnings` entry.
-7. **Ingest.** `start_ai_context_hub_ingestion`, then poll `get_ai_context_hub_ingestion_status` until `job.phase` is `done` or `failed`. Report `job.failures`.
+7. **Ingest.** `start_ai_context_hub_ingestion`, then poll `get_ai_context_hub_ingestion_status` until `job.phase` is `done` or `failed`. Report `job.failures`. If a poll returns `job: null`, the run is not lost: confirm its outcome in the system log (**Check an ingestion in the system log**) and do not start it again.
 8. **Verify.** `list_sap_services({ id, search: "purchase" })` and `get_sap_service` for the main service.
 9. **Explain what is left.** An AI agent reaches the system through a **SAP Data Source**, which is created in Cockpit (no MCP tool). Then it is linked with `sapDataSources` on the agent (see `manage-ai-agents`).
 
 Always finish by listing what you configured and what the user still has to do in the UI.
+
+## Check an ingestion in the system log
+
+Every ingestion, whether started through MCP or in the Cockpit, writes its progress to the server log. Read it with `list_system_logs` and `get_system_log` (see `inspect-system-logs`; needs the System Logs permission):
+
+1. `list_system_logs({ type: "server", dateFrom: "<day of the run>" })` gives the file name of that day.
+2. `get_system_log({ type: "server", name: "<file>", message: "[SAP Ingestion]", dateFrom: "<job.startedAt>" })` returns the lines below. `level: ["error"]` returns only the failures.
+
+| Line | Meaning |
+|---|---|
+| `[SAP Ingestion] Discovered <n> service(s)` | A pass starts. |
+| `[SAP Ingestion] Ingesting <service> (<i>/<n>)` / `Enhancing <service> …` | One service is being ingested or AI-enhanced. |
+| `[SAP Ingestion] Completed <service>` | The service is in the catalog. |
+| `[SAP Ingestion] Failed <service>: <error>` | Logged as `error`. Report the service and the error. |
+| `[SAP Ingestion] Ingestion finished (<x> succeeded, <y> failed)` | A pass ended. |
+
+A run makes one pass per source type (OData services, business objects, function modules, …), and every pass logs its own `Ingestion finished`. Compare the `Completed` and `Failed` lines with what the config pins: services already in the catalog are only counted (`<n> already ingested`) and get no line of their own unless `reingestExisting` is set. The `[SAP Ingestion]` lines carry no system id. To tie a run to its system, also read `get_system_log({ type: "server", name: "<file>", message: "buildSAPEngineServices", dateFrom: "<job.startedAt>" })`: each run starts with `[SAP Engine] buildSAPEngineServices: system=<system id> …` followed by its skip flags and pinned services (a semantic service search writes the same line). The `[SAP Ingestion]` lines that follow belong to that run; when several systems ingest at the same time their lines interleave, so match the service names against the pinned services in each system's line. Without the System Logs permission, rely on the `ingested` counts of `get_ai_context_hub_ingestion_status` and on `list_sap_services`, which always come from the stored catalog.
 
 ## Typical flow: "Give my agent the tools of this MCP server"
 
@@ -131,7 +148,7 @@ An agent calls a remote MCP tool only when all three hold: the agent links the s
 ## Gotchas
 
 - `tlsAllowUntrusted: true` turns off certificate checks for the system. Set it only when the user explicitly asks (e.g. a self-signed dev SAP system), say that it weakens security, and never use it to work around a certificate error on its own initiative.
-- Ingestion progress is tracked only for runs started through MCP, on the server process that started them. `job: null` after a restart is normal: `ingested` counts are still accurate.
+- Ingestion progress is tracked only for runs started through MCP, on the server process that started them. A server usually runs several processes, so a status call answered by another process, or made after a restart, returns `job: null` even while the run is going. `ingested` counts are still accurate, and the system log shows the run.
 - An agent's `selectedRemoteMCPTool` is keyed by the system **name**. Renaming an MCP system silently removes its tools from every agent until the key is updated.
 - Agents use the **stored** tool list. When the remote server adds or renames tools, run `import_remote_mcp_tools` again.
 - Deleting a system removes all its ingested metadata. Re-ingestion is slow and calls SAP, so confirm before deleting.
