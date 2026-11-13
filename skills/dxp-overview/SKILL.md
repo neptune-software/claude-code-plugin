@@ -1,6 +1,6 @@
 ---
 name: dxp-overview
-description: Foundational concepts for working with a Neptune DXP - Open Edition instance via this plugin. Covers what Neptune DXP is, the Cockpit vs Launchpad split, the core artifact model (apps, server scripts, APIs, tables, process flows), how those artifacts connect at runtime, and the platform-specific rules that diverge from generic Node.js conventions (e.g. NPM module loading via the `modules.*` global, not `require`/`import`). Invoke at the start of any conversation involving Neptune DXP, before reasoning about App Designer / Script Editor / API Designer artifacts, when interpreting DXP terminology (Planet9, Cockpit, Launchpad, Adaptive), or when a Neptune MCP tool returns results that reference these concepts. Also invoke to find out which release the connected server runs and which tools and skills it supports. Other skills in this plugin (search-docs, manage-apis, run-server-script) build on the vocabulary defined here.
+description: Foundational concepts for working with a Neptune DXP - Open Edition instance via this plugin. Covers what Neptune DXP is, the Cockpit vs Launchpad split, the core artifact model (apps, server scripts, APIs, tables, process flows), how those artifacts connect at runtime, and the platform-specific rules that diverge from generic Node.js conventions (e.g. NPM module loading via the `modules.*` global, not `require`/`import`). Invoke at the start of any conversation involving Neptune DXP, before reasoning about App Designer / Script Editor / API Designer artifacts, when interpreting DXP terminology (Planet9, Cockpit, Launchpad, Adaptive), or when a Neptune MCP tool returns results that reference these concepts. Also invoke to find out which release the connected server runs (`get_system_info`) and which tools and skills it supports. Other skills in this plugin (search-docs, manage-apis, run-server-script) build on the vocabulary defined here.
 ---
 
 # Neptune DXP — orientation
@@ -12,7 +12,7 @@ Neptune DXP (Digital Experience Platform) is a full-stack low-code platform for 
 The MCP server is part of Open Edition, and newer releases add tools. Some skills in this plugin cover tools that an older server does not have.
 
 1. Call `get_system_info` once at the start: `release` is the server's version. If the tool is not in your tool list, the server runs the first release with an MCP server (`reference/releases.md`). Deferred tool names count as present; load a deferred tool before calling it. If the call is refused (it needs the Cockpit permission), the release is unknown: go by the tool list.
-2. **The tool list decides, not the version number.** Use a skill only when the tools named in its description are in your tool list. When a step needs a tool your server lacks, skip that step, say that this server's release does not support it over MCP, and point to the Cockpit tool instead; never work around it by writing platform tables.
+2. **The tool list decides, not the version number.** Use a skill only when the tools named in its description are in your tool list; for a skill whose description names no tools, `reference/releases.md` gives the release it needs. When a step needs a tool your server lacks, skip that step, say that this server's release does not support it over MCP, and point to the Cockpit tool instead; never work around it by writing platform tables.
 3. `reference/releases.md` summarizes the tool families and skills each release adds and the differences that matter.
 
 ## The two surfaces: Cockpit and Launchpad
@@ -161,7 +161,7 @@ Before using or interpreting the result of an MCP tool, load the skill that docu
 | `get_app`, `save_app`, `activate_app` when the task is an `AGENTS.md` file, a custom tool, the app description for the agent, the Agentic Apps opt-out or the denylist | `agentic-apps` (after `manage-apps`) |
 | `save_launchpad`, `save_tile`, `save_tile_group`, `save_theme_generator` when the task is a whole launchpad that should look like a website, screenshots, a brand guide or a brief | `design-to-launchpad` (after the skills above) |
 
-Tools not in this table have no dedicated skill yet: follow the tool's own description, check `search-docs`, and confirm with the user before any write.
+Tools not in this table have no dedicated skill yet, and a skill this page names that is not in your skill list is not part of the installed plugin: in both cases follow the tool's own description, check `search-docs`, and confirm with the user before any write.
 
 Do not infer Neptune DXP behavior from MCP field names alone. Load the matching skill first, then use the tool or interpret results from the tool call.
 
