@@ -13,7 +13,7 @@ The user's language picks the translation, then the `fallbackLocale` translation
 
 | Tool | Purpose |
 |---|---|
-| `list_i18n_models({ listOptions? })` | Items `id`, `name`, `description`, `application`, `package`, `updatedAt`; `where`/`order` on `name`, `description`, `application`, `fallbackLocale`, `package`, `active`, `baseModelId`, `ver`, `changedBy`, `updatedAt`; `{ items, hasMore, nextSkip? }`, 25 per page (max 200). |
+| `list_i18n_models({ listOptions? })` | Items `id`, `name`, `description`, `application`, `package`, `updatedAt`; `where`/`order` on `name`, `description`, `application`, `fallbackLocale`, `package`, `active`, `baseModelId`, `ver`, `changedBy`, `updatedAt`. A field you sort on must be among the returned fields, so add `select` for the others: `{ "select": { "id": true, "name": true, "active": true }, "order": { "active": "DESC" } }` (without it: `Error listing i18n`). `{ items, hasMore, nextSkip? }`, 25 per page (max 200). |
 | `get_i18n_model({ id } \| { name } \| { application }, locales?)` | The model with `attributes`, `locales`, `fallbackLocale`, `active`, `baseModelId`, `baseModel`, `enhancedBy` and `whereUsed` (`apps`, `adaptive`, `launchpad`, `category` (tile groups), `tile`, `wf_notifications` (email templates), `doc`, `pdf_runtime`). A `name` matches a global model first, then an app's model; use `application` for an app model. `locales: ["de"]` returns only those translations; empty translations are never returned. |
 | `save_i18n_model({ i18n })` | Create (no `id`, `name` required) or update. See Save rules. |
 | `delete_i18n_model({ id })` | Refused for an app model (deleted with its app), a model in use (lists the users), and a model with enhancements; an enhancement can always be deleted. **A use counts only if the artifact was saved after the model existed** (see Save rules). |
@@ -33,7 +33,7 @@ The user's language picks the translation, then the `fallbackLocale` translation
 - **App models**: an app has at most one; update it (`get_i18n_model({ application })`), never create a second (`App '<app>' already has i18n model …`). Its `name` must equal the app name. The `application` of a model and the name of an app model cannot be changed. `delete_app` hides the app's model with the app (`list_i18n_models` drops it, get by id still returns it; restore brings it back, a purge deletes it) and is refused while that model has enhancements.
 - `active: false`: App Designer apps get no texts from the model (tiles and launchpads still resolve it).
 - Save and delete fail while someone has the model open in the Cockpit (`… is locked by …`).
-- Errors: `The model is missing a name`, `Provide id, name or application`, `App '<app>' has no i18n model`, `No global or app i18n model named '<name>'`.
+- Errors: a create without `name` (`The model is missing a name` or `Validation error! … name is required`), `Provide id, name or application`, `App '<app>' has no i18n model`, `No global or app i18n model named '<name>'`.
 
 ## Enhancements
 
@@ -53,4 +53,4 @@ An **enhancement** (`baseModelId` = the model it extends) overrides texts of a m
 
 ## Related skills
 
-- **`manage-tiles`**, **`manage-tile-groups`**, **`manage-launchpads`**, **`manage-adaptive`**, **`manage-pdf`**, **`manage-apps`**: where the bindings go.
+- **`manage-tiles`**, **`manage-tile-groups`**, **`manage-launchpads`**, **`manage-adaptive`**, **`manage-apps`**: where the bindings go.
