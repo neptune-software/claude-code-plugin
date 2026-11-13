@@ -93,8 +93,8 @@ save_adaptive({ "adaptive": {
 ## Save rules and limits
 
 - Checks on save are few: an unknown template, field name or `settings` key is accepted and stored. A `connectorid` that does not exist is refused (`Error saving reports`). Unknown top-level keys are dropped silently.
-- Send `settings` with `properties`, `fieldsSel` and `fieldsRun` on **every** save, including updates (without them: `Cannot read properties of undefined (reading 'fieldsSel')` / `settings.fieldsRun is not iterable`). `settings` is stored as a whole, so send the full object from `get_adaptive`; top-level fields you leave out keep their values.
-- `name` is unique (`name '<name>' already exists!`). On create the caller's default package applies; when packages are enforced the save may demand one.
+- Send `settings` with `properties`, `fieldsSel` and `fieldsRun` on **every** save, including updates. Without them the save fails (`Cannot read properties of undefined (reading 'fieldsSel')` / `settings.fieldsRun is not iterable`) or stores an app with empty `settings` (`[]`) that cannot run. `settings` is stored as a whole, so send the full object from `get_adaptive`; top-level fields you leave out keep their values.
+- `name` is unique (`name '<name>' already exists!`) and may only contain letters, digits and `_`. On create the caller's default package applies; when packages are enforced the save may demand one (`Package is a required field`).
 - **One value source per field name.** A field with `valueType` (`Fixed`, `Lookup`, `Rule`) delivers its value as `<name>_value`, so two `fieldsRun` entries on the same `name` that both have a `valueType` overwrite each other (seen: a status-to-icon and a status-to-colour lookup on one calendar gave broken icons). Take the second value from another field. `valueType: "Script"` is offered in the designer but nothing evaluates it, so the field stays blank.
 - In a navigation `keyField`, set either `key` (copy from the source row) or `value` (fixed), never both.
 - Texts can be i18n bindings (`{i18n.<model>>key}`); the save links the referenced i18n models (`list_i18n_models`).
