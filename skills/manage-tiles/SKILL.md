@@ -28,7 +28,7 @@ An update merges what you send into the stored tile: send `id` plus the fields t
 | `package` | Package id; on create without it your editable default package, else none. A nonexistent id fails with `Error saving tile` (verified). |
 | `type` | What the tile body shows — see Tile types. `null` / `""` = Default. |
 | `actionType` + its target field | What a click does — see Actions. **No target is checked** (verified): confirm apps, web apps, adaptives and tile groups exist first. |
-| `roles` | `[{ "id": "<role id>" }]`. Present = replaced, absent = kept, `[]`/`null` = cleared; a nonexistent id fails with `Error saving tile` (verified). |
+| `roles` | `[{ "id": "<role id>" }]`. Present = replaced, absent = kept, `[]` = cleared — send `[]`, never `null`, which may leave the roles in place; a nonexistent id fails with `Error saving tile` (verified). |
 | `settings` | JSON: `adaptive.id` (Adaptive action), `adaptive.idTile` (Adaptive type), `metric` (image pixel sizes the Cockpit stores). **Replaced as a whole** (verified): send the complete object from `get_tile`. |
 | `storeItem` | `{ "mobileClient": "…" }`; other keys dropped (verified). |
 | `footer`, `descriptionFormatter`, `helpTextFormatter` | Raw HTML (`footer`) or JavaScript run in every user's browser, unfiltered — only markup and code you trust. |
@@ -167,15 +167,17 @@ save_tile({ "tile": {
 2. `get_launchpad({ id, includeTiles: true })` lists the tiles of each top-level group in order; for a child, navbar or
    sidebar group use `get_tile` → `tilegroups` and `get_tile_group`.
 3. If your client can fetch URLs: each `/media/root/<path>` answers 200 with `image/*` (404 = wrong path, case or a
-   query string); `/launchpad/<name>` answers 200 (login page), 500 = a group with a broken order (verified).
+   query string); `/launchpad/<name>` answers 200 (login page), 500 = a group with a broken tile order (verified). A broken
+   child-group order still answers 200 — step 2 fails with `Error fetching category` instead.
 4. Pixels need a browser: the review in `design-to-launchpad` → Verify step 3.
 
 ## Listing and filtering
 
 Filter and sort on `name`, `title`, `subTitle`, `description`, `type`, `actionType`, `actionApplication`, `actionWebApp`,
 `roleTag`, `tags`, `package`, `cockpitTile`, `blackoutEnabled`, `ver`, `createdBy`, `changedBy`, `createdAt`, `updatedAt`
-(other `where` keys are dropped: the list comes back unfiltered, verified). Paging: `order` with its field in `select`
-(else `Error listing tile`), `skip` = `nextSkip` while `hasMore`, `take` ≤ 200.
+(`where` also takes `id`; any other key is refused: `Unrecognized key(s) in object`, verified). Paging: `order` on a
+field the list returns — add one outside the summary to `select`, else the list can fail with `Error listing tile`
+(verified) — `skip` = `nextSkip` while `hasMore`, `take` ≤ 200.
 
 ## Errors
 
@@ -187,7 +189,7 @@ Filter and sort on `name`, `title`, `subTitle`, `description`, `type`, `actionTy
 | `Tile '<name>' is assigned to 2 tile groups (A, B). Re-run with confirm set to true to delete it.` | `delete_tile` without `confirm` (also `… is not assigned to any tile group …`). Nothing deleted. |
 | `Not Found` | `get_tile` / `delete_tile` with an unknown or already deleted id, with or without `confirm`. |
 | `MCP error -32602: … at tile.<field>` | Wrong type, enum value, non-UUID id, or `name` / `title` over 64 characters. |
-| `Error listing tile` | `order` on a field not in `select`, or a malformed filter value. |
+| `Error listing tile` | `order` on a field the list does not return (add it to `select`), or a malformed filter value. |
 | `Package is a required field` / `No edit access to artifact` / `Your default package cannot be used: …` | Send a package you may edit. `Access denied: no permission for tile` = missing permission. |
 
 ## What MCP can NOT do

@@ -1,11 +1,11 @@
 # Launchpad settings — full field reference (`save_launchpad`)
 
 Every Cockpit Launchpad input, by tab, with its payload key. Top-level keys go directly on `launchpad`; `config.<key>`
-keys go inside `config`, which is **replaced as a whole** — read it with `get_launchpad`, change the copy, send it
-complete. Fields not listed under a tab here are in SKILL.md (`name`, `title`, `package`, `cat`, `header`,
+keys go inside `config`, which is **merged key by key** — send only the keys that change (`config.designer` is replaced
+as a whole, see SKILL.md). Fields not listed under a tab here are in SKILL.md (`name`, `title`, `package`, `cat`, `header`,
 `customTheme`, `layout_light`/`layout_dark`, `config.designer`).
 
-The server validates types only. The Cockpit runs extra rules the server does not repeat — apply them yourself
+The server validates types, the value ranges named below and `loginApp`. The Cockpit runs extra rules the server does not repeat — apply them yourself
 (last section).
 
 ## Settings tab
@@ -67,7 +67,7 @@ The server validates types only. The Cockpit runs extra rules the server does no
 |---|---|---|
 | Default Provider | `defaultLoginIDP` | Login provider id. Works only for a provider that is `active`, has `show: true` and is not `jwt-validation`. A local, LDAP or SAP provider is preselected; an external one (Azure AD, SAML, OpenID Connect, OAuth2) with `config.hideLoginSelection: true` leaves only its button — no user/password form. An unusable id is ignored. Ids: `get_system_settings` → `idp[]` (`id`, `name`, `type`, `active`, `show`; needs System Settings access), else `logonTypes` of `https://<host>/user/logon/types` if the client can fetch URLs, else ask. |
 | Custom Login Title / Subtitle | `config.loginTitle` / `config.loginSubTitle` | Login page texts; `{i18n.<model>>key}` bindings are resolved. |
-| Custom Login App | `loginApp` | App Designer app shown instead of the standard login page. **A name that is not an app makes the login page answer 404** — check with `get_app`/`list_apps` first. |
+| Custom Login App | `loginApp` | App Designer app shown instead of the standard login page. **A name that is not an app is refused** (`Login app '<name>' not found`) — check with `get_app`/`list_apps` first; `null` clears it. |
 | Password Reset Email | `passwordResetEmail` | Email template id (`list_email_templates`) for this launchpad's forgot-password mail. |
 | Hide Login Selection | `config.hideLoginSelection` | Hides the provider dropdown. |
 | Hide Local Login Selection | `config.hideLoginLocal` | Removes the user/password option (it stays if no other provider exists). |
@@ -95,9 +95,9 @@ The server validates types only. The Cockpit runs extra rules the server does no
 | Icon for All iOS devices / Small Icon for Android devices / Large Icon for Android devices | `pwa_customImageIos` (540×540) / `pwa_customImageAndroidOld` (192×192) / `pwa_customImageAndroidNew` (512×512) | Image URLs (`manage-media`); missing sizes fall back to Neptune icons. |
 | Desktop screenshots | `pwa_desktopScreenshotWide` (720×540) / `pwa_desktopScreenshotNarrow` (540×720) | Install-dialog screenshots. The Cockpit labels them "Vertical"/"Horizontal" the other way round. |
 | Theme Color / Background Color | `pwa_themeColor` / `pwa_backgroundColor` | Manifest colours. |
-| Autolock on Idle in Seconds | `config.autolock` | Idle seconds until the user is signed out, on every launchpad that requires sign-in (`0` = off; on a public launchpad it never starts); with PWA and PIN the launchpad locks instead. The Cockpit shows it only under PWA (0–36000). |
-| Enable PIN / PIN Length / PIN Tries | `config.pincode` / `config.pincodeLength` / `config.pincodeTries` | Send length `4`, `6` or `8` and tries `1`–`10` (the Cockpit's lists; the server stores any number). |
-| PIN Key Iterations | `config.pincodeKeyIterations` | Default 40000, at most 600000. Changing it signs out every PWA user. |
+| Autolock on Idle in Seconds | `config.autolock` | Idle seconds until the user is signed out, on every launchpad that requires sign-in (`0` = off; on a public launchpad it never starts); with PWA and PIN the launchpad locks instead. The Cockpit shows it only under PWA. `0`–`36000`; a value outside is refused. |
+| Enable PIN / PIN Length / PIN Tries | `config.pincode` / `config.pincodeLength` / `config.pincodeTries` | Length `4`, `6` or `8` and tries `1`–`10`; other values are refused. |
+| PIN Key Iterations | `config.pincodeKeyIterations` | Default 40000, at most 600000 (more is refused). Changing it signs out every PWA user. |
 | Enable Web Authentication (Public Key Infrastructure) | `config.enableWebAuth` | Device-key (fingerprint/face) unlock, with PIN. |
 
 Check: `GET /public/launchpad/<id>/pwa.json` (no session) returns the manifest: `name`, `display`, `theme_color`,
@@ -211,14 +211,14 @@ Patterns that work (verified on a public launchpad, 2 spots, desktop and phone):
 
 ## Rules the Cockpit applies and the server does not
 
-- Name: only letters, digits, `_`, `.`, `-` (spaces become `-`).
+- Name: the Cockpit turns spaces into `-`; the server refuses a name with other characters (SKILL.md → `name`).
 - Hide Launchpad Header also switches the other header and menu flags (see above).
 - `enableTopMenu` and `verticalMenu` exclude each other; so do `activeAppsSide` and `activeAppsTop`; turning on the
   top menu also turns `oneLineTopMenu` off.
 - Enable PWA sets `config.pincode` to the same value and `config.autolock` to `0`; Enable PIN fills tries 5, length 4,
   iterations 40000.
 - `languages` without `EN` needs `fallbackLanguage`; the default and fallback language are added to `languages`.
-- Client Request Timeout below 5 becomes 120; PIN length 4/6/8, tries 1–10, iterations ≤ 600000; Autolock 0–36000.
+- Client Request Timeout below 5 becomes 120.
 - A spot edited in the Cockpit takes the Cockpit's `param`; unknown names appear disabled there but stay stored and still run while active.
 - `customCDN` needs `ui5Url`.
 - Deleted tile groups are dropped from `cat` on save (the server instead refuses an unknown id).

@@ -1,6 +1,6 @@
 ---
 name: manage-launchpads
-description: Create, configure, restyle, inspect or delete Neptune DXP launchpads with the MCP tools `list_launchpads`, `get_launchpad`, `save_launchpad`, `delete_launchpad` — every Cockpit Launchpad setting (header and menu, login page and providers, roles, self-registration, languages, PWA, idle sign-out and PIN, AI agent, enhancement scripts, cookie and blackout dialogs), the Launchpad Designer appearance (theme, logo, colours, canvas, widths, login page, custom CSS, tile and tile group look), light and dark mode, and the assigned tile groups. Use for "create a launchpad", "style the launchpad", "Launchpad Designer", "dark mode", "let users switch light and dark", "installable on phones", "log in with Azure AD", "only managers may open it", "add an AI assistant", "enhancement spot", "maintenance mode", "launchpad URL", "delete the launchpad". Read it before any `save_launchpad` payload, because `config` is replaced as a whole.
+description: Create, configure, restyle, inspect or delete Neptune DXP launchpads with the MCP tools `list_launchpads`, `get_launchpad`, `save_launchpad`, `delete_launchpad` — every Cockpit Launchpad setting (header and menu, login page and providers, roles, self-registration, languages, PWA, idle sign-out and PIN, AI agent, enhancement scripts, cookie and blackout dialogs), the Launchpad Designer appearance (theme, logo, colours, canvas, widths, login page, custom CSS, tile and tile group look), light and dark mode, and the assigned tile groups. Use for "create a launchpad", "style the launchpad", "Launchpad Designer", "dark mode", "let users switch light and dark", "installable on phones", "log in with Azure AD", "only managers may open it", "add an AI assistant", "enhancement spot", "maintenance mode", "launchpad URL", "delete the launchpad". Read it before any `save_launchpad` payload, because `config` is merged key by key while `config.designer` is replaced as a whole.
 ---
 
 # Managing Neptune DXP launchpads via MCP
@@ -21,24 +21,24 @@ them. No activate step: a save is served on the next request (verified).
 
 ## The `save_launchpad` contract
 
-An update **merges**: send `id` plus the fields that change (verified). `config`, `enhancement`, `cat` and `roles` are
-each stored as one value.
+An update **merges**: send `id` plus the fields that change (verified). `config` is merged key by key;
+`config.designer`, `enhancement`, `cat` and `roles` are each stored as one value.
 
 | Field | Rules |
 |---|---|
-| `id` | Omit to create. Update only an id you just read: an unknown id with `name` creates a broken launchpad (page 500), without `name` it fails (verified). |
-| `name` | Required on create; 1–64 characters, trimmed; it is the URL — letters, digits, `_`. Uniqueness can be case-sensitive (`HR_PORTAL` next to `hr_portal` is accepted, verified): compare case-insensitively first. |
+| `id` | Omit to create. An unknown id fails with `Launchpad '<id>' not found`, with or without `name`; nothing is created (verified). |
+| `name` | Required on create; 1–64 characters, trimmed; it is the URL — letters, digits, `_`, `.` and `-`; anything else is refused: `Launchpad name '<name>' may only contain letters, digits, _, . and - (it is the launchpad URL)` (verified). Uniqueness can be case-sensitive (`HR_PORTAL` next to `hr_portal` is accepted, verified): compare case-insensitively first. |
 | `title` | Tab title; with `config.showLaunchpadTitle` also next to the logo. **No `"`, `\` or line breaks** — written unescaped into the page script, a `"` stops the launchpad (verified). Same for `customLogo`, `startApp`, `startWebApp`, `launchpadFooter`, and `'` in `defaultLoginIDP`. |
-| `config` | Most Cockpit options **and** `config.designer`. **Replaced as a whole** (verified): `{ "hideSearch": true }` alone deletes everything else, Designer settings included. Always `get_launchpad`, change the copy, send it complete. Unknown keys are kept; `config.enhancement` and `config.locales` are generated on save. |
+| `config` | Most Cockpit options **and** `config.designer`. **Merged key by key** (verified): `{ "hideSearch": true }` alone changes that setting and keeps everything else, Designer settings included — send only the keys that change. Each key you send replaces its stored value, so **`config.designer` is replaced as a whole** (verified): `get_launchpad`, change the copy of `designer`, send it complete with both buckets. A key cannot be removed (`null` is stored as `null`, verified): switch a setting off with its off value. Unknown keys are kept; `config.enhancement` and `config.locales` are generated on save. |
 | `cat` | Tile groups in display order, `[{ "id": "…" }]` or `["…"]`; replaces the assignment; `[]` removes all (groups stay); duplicates stored once; an unknown id → `Error saving launchpad`, nothing changes (verified). |
-| `layout_preference` | `0` Default, `1` Prefer Light, `2` Prefer Dark, `3` Only Light, `4` Only Dark — see Light and dark. Any number is stored: send only these (verified). |
+| `layout_preference` | `0` Default, `1` Prefer Light, `2` Prefer Dark, `3` Only Light, `4` Only Dark — see Light and dark. Any other number is refused (`Number must be less than or equal to 4 at launchpad.layout_preference`, verified). |
 | `header` | Raw HTML in `<head>` of the launchpad page (fonts, `<link>`, scripts); not on the login page of a launchpad without PWA (verified). |
 | `publicAccess` | `true` = anonymous users may open it (verified); a public launchpad has no user button, hence no user menu. |
 | `roles` | `[{ "id": "<role id>" }]` may open it; replaces the set; omitted = kept; `[]` = every signed-in user (verified). |
 | `enhancement` | Scripts at launchpad events — see Enhancement spots. |
 | `package` | Package id; without it your default package applies, else none (verified). |
 | `customTheme`, `customLogo`, `layout_light`, `layout_dark` | Legacy: a Global Style id (not a Theme Generator theme), a fallback logo URL, Launchpad Layout ids — leave empty; use `THEME`, `TOP_LOGO` and the Designer settings. |
-| everything else | Settings below and `reference/settings.md`. `agentId` / `iaAgentId` must exist; other references are not checked, and an unknown `loginApp` makes the login page answer 404 (verified). |
+| everything else | Settings below and `reference/settings.md`. `agentId` / `iaAgentId` and `loginApp` must exist (`Login app '<name>' not found`, verified); other references are not checked. |
 
 Silently dropped (no error): `css`, `launchpadApp`, `layout`, top-level `noSubmenuHover` (use `config.noSubmenuHover`),
 `catOrder`, the `search…`/`used…` fields, any key the schema does not list (verified). `limitWidth` and
@@ -61,7 +61,7 @@ Everything the Launchpad Designer saves under Appearance (verified round-trip). 
 - **Nothing is validated** (a misspelt key is stored, verified): copy keys exactly. Colours: any CSS colour.
 - `tileLayout` / `tileGroupLayout` entries need `data`; with only `data` they style **every** tile / group (`TILE_BACK`,
   `TILE_TITLE`, `TILE_ICON_COLOR`, …; `HEAD_TEXT_CLR`, `HEAD_BORDER_CLR`, …). Entries with `screenId`, `catId`, `tileId`,
-  `placement` are the Designer's per-item styling — keep them when re-sending `config`.
+  `placement` are the Designer's per-item styling — keep them when re-sending `designer`.
 - **One tile's colour**: `CUSTOM_CSS` on `:root .nepTile<tile id> .nepFCard` (or the tile's `styleClass`); without
   `:root` the rule loses to the Designer's tile variables (verified).
 - **No background image** (`PAGE_BACK_IMAGE: "None"`): also set `SHELL_BACK_COLOR` — else the header colour shows — and
@@ -101,7 +101,7 @@ Dark: `neptune-generated-dark-<id>` in both places, `THEME_BASE: "sap_horizon_da
 
 ## Settings: what the user asks → what to set
 
-Field list with Cockpit labels and values: **`reference/settings.md`**. `config.*` keys need the complete `config`.
+Field list with Cockpit labels and values: **`reference/settings.md`**. `config.*` keys go inside `config`; send only the ones that change.
 
 | User asks | Set |
 |---|---|
@@ -184,25 +184,31 @@ save_launchpad({ "launchpad": { "name": "sales_portal", "title": "Sales Portal",
       "dark": { "launchpadLayout": {}, "tileLayout": [], "tileGroupLayout": [] } } } } })
 ```
 
-**Restyle / change a setting**: `get_launchpad` → change the copy (keep the Designer's per-item entries) →
-`save_launchpad({ id, config: <complete copy> })` → Verify. **Tile groups**: send the full ordered `cat`. **Delete**:
-confirm the name → `delete_launchpad` → `get_launchpad` → `Not Found`.
+**Change a setting**: `save_launchpad({ id, config: { "<key>": <value> } })` with only the keys that change → Verify.
+**Restyle**: `get_launchpad` → change the copy of `config.designer` (keep both buckets and the Designer's per-item
+entries) → `save_launchpad({ id, config: { "designer": <complete copy> } })` → Verify. **Tile groups**: send the full
+ordered `cat`. **Delete**: confirm the name → `delete_launchpad` → `get_launchpad` → `Not Found`.
 
 ## Listing and filtering
 
-- `where: { "name": { "operation": "ILike", "value": "sales%" } }`; `where.id` is ignored (verified).
-- **Put the sort field in `select`**, else `Error listing launchpad` (verified). Page with `skip` = `nextSkip` while
-  `hasMore`; `take` max 200.
+- Users name a launchpad by what they see: filter `title` or `name` with `ILike` (`%word%`) before paging through every launchpad.
+- `where: { "name": { "operation": "ILike", "value": "sales%" } }`; `where: { "id": "<id>" }` filters as well. A `where`
+  key the tool does not list is refused: `Unrecognized key(s) in object: '<key>' at listOptions.where` (verified).
+- **Sort on a field the list returns**: for a field outside the summary add it to `select`, as in
+  `{ "select": { "id": true, "name": true, "createdAt": true }, "order": { "createdAt": "DESC" } }`; without it the list
+  can fail with `Error listing launchpad` (verified). Page with `skip` = `nextSkip` while `hasMore`; `take` max 200.
 
 ## Errors
 
 | Signal | Meaning / fix |
 |---|---|
 | `name '<name>' already exists!` | Duplicate name on create or rename (verified). |
-| `Not Found` | Unknown id. |
-| `Error saving launchpad` | No `name` on create; unknown `id` without `name`; a `cat` id that is no tile group; an unknown `agentId` / `iaAgentId` (verified). Re-read before retrying. |
-| `MCP error -32602: Input validation error: … at launchpad.<field>` | Wrong type, length, enum or UUID at that path (verified). Nothing saved. |
-| Signed-out `/launchpad/<name>` answers 404 | `loginApp` names no app (verified): set an existing app or `null`. |
+| `Not Found` | `get_launchpad` / `delete_launchpad` with an unknown id. |
+| `Launchpad '<id>' not found` | `save_launchpad` with an unknown `id` (verified). Nothing is created. |
+| `Login app '<name>' not found` | `loginApp` names no app (verified): send an existing app or `null`. |
+| `Error saving launchpad` | A `cat` id that is no tile group; an unknown `agentId` / `iaAgentId`; no `name` on create, which can also answer `Validation error!` with `name is required` (verified). Re-read before retrying. |
+| `MCP error -32602: Input validation error: … at launchpad.<field>` | Wrong type, length, enum or UUID at that path, or a number outside its range: `layout_preference`, `config.pincodeLength`, `config.pincodeTries`, `config.pincodeKeyIterations`, `config.autolock` (verified). Nothing saved. |
+| Signed-out `/launchpad/<name>` answers 404 | The app named in `loginApp` no longer exists: set an existing app or `null`. |
 | `Package is a required field` / `Your default package cannot be used: …` | Send `package`. `Access denied: no permission for launchpad` = missing Launchpad permission. |
 | `<name> is locked by <user> since <time>` | Open for editing in the Cockpit or Launchpad Designer; retry later. |
 
@@ -211,10 +217,10 @@ confirm the name → `delete_launchpad` → `get_launchpad` → `Not Found`.
 - Generate the Designer's Custom Theme Override from brand/highlight/font inputs — use a Theme Generator theme.
 - Create, edit or list Global Styles or Launchpad Layouts — reference an existing id only.
 - Read the instance's default Launchpad Layouts (System Settings), which fill a missing bucket.
-- Check stored references: app names, `loginApp`, `customTheme`, `defaultLoginIDP`, email template ids, image URLs and
-  designer keys are saved unchecked.
-- Run the Cockpit's convenience rules (Hide-Header cascade, menu exclusions, PWA → PIN reset, fallback language, value
-  ranges, spot parameters) — send the related fields yourself (`reference/settings.md`, last section).
+- Check stored references: app names other than `loginApp`, `customTheme`, `defaultLoginIDP`, email template ids, image
+  URLs and designer keys are saved unchecked.
+- Run the Cockpit's convenience rules (Hide-Header cascade, menu exclusions, PWA → PIN reset, fallback language, spot
+  parameters) — send the related fields yourself (`reference/settings.md`, last section).
 - Render the launchpad, or create tiles and tile groups.
 
 ## Permissions

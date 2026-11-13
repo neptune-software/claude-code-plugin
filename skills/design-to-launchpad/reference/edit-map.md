@@ -51,5 +51,5 @@ defect: find the part, change only that setting, re-read, re-check. Exact keys a
 | Fonts | the font record + the theme's `FONT_FAMILY`; after renaming or replacing font files re-save the theme (`manage-fonts`) |
 | Brand colours of UI5 controls | Theme Generator seeds (`manage-theme-generator`) |
 
-After any edit: save the complete object (launchpad `config` is replaced whole), re-read it, then run the review in
+After any edit: save it (a launchpad's `config.designer` is replaced whole, so send that complete), re-read it, then run the review in
 SKILL.md → Verify step 3 (hover every kind of element, labels on one line, no orphan words, side menu, phone).

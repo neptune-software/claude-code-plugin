@@ -11,14 +11,14 @@ Four tools move file bytes into the platform. None of them takes the file conten
 
 | Tool | Destination | Use it for |
 |---|---|---|
-| `upload_media_file({ path, filename, sourceUrl? })` | One file into a Media Library folder; missing folders are created (verified), see the first-folder rule below. | Anything a page links to: Launchpad Designer logos and backgrounds, tile images, icons, favicons, CSS and JS files, PDFs, videos. Reference it as `/media/root/<path>/<filename>` (manage-media). |
-| `upload_media_zip({ path, sourceUrl? })` | Unpacks a zip into a Media Library folder, keeping the zip's subfolders (verified). | A set of assets in one go: an icon set, a stylesheet with its images, a JS library. |
+| `upload_media_file({ path, filename, package?, sourceUrl? })` | One file into a Media Library folder; missing folders are created (verified), see the first-folder rule below. `package` (a package id) puts a new top-level folder into that package (verified). | Anything a page links to: Launchpad Designer logos and backgrounds, tile images, icons, favicons, CSS and JS files, PDFs, videos. Reference it as `/media/root/<path>/<filename>` (manage-media). |
+| `upload_media_zip({ path, package?, sourceUrl? })` | Unpacks a zip into a Media Library folder, keeping the zip's subfolders (verified). | A set of assets in one go: an icon set, a stylesheet with its images, a JS library. |
 | `upload_webapp_zip({ id, sourceUrl? })` | **Replaces every file** of an existing web app (verified). | Deploying a built single-page app (`dist/` of Vite, React, Vue). |
-| `upload_font_file({ id, filename, sourceUrl? })` | Adds one file to an existing font (verified). | `.woff2` for UI5 themes and web pages, `.ttf` / `.otf` for PDFs (manage-fonts). |
+| `upload_font_file({ id or name, package?, filename, sourceUrl? })` | With `id`: adds one file to an existing font. With `name`: creates the font from this file and returns its `id` (verified). | `.woff2` for UI5 themes and web pages, `.ttf` / `.otf` for PDFs (manage-fonts). |
 
 There is no upload destination for launchpads, tiles or UI5 themes themselves: their images, icons and CSS assets go into the Media Library and are referenced by URL; their fonts go into a font.
 
-`path` is a Media Library folder such as `acme_brand/logos` — leading and trailing slashes are ignored (verified), `""` is the root. **Start `path` at a top-level folder that exists, or at a name used nowhere in the library** — the first folder is matched by name at any depth; the rule and its checks are in manage-media → Paths. `id` is the web app id (`list_webapps`) or the font id (`list_fonts`); create the web app or font first, the upload never creates one. `filename` is the stored name and decides the served `Content-Type` (verified).
+`path` is a Media Library folder such as `acme_brand/logos` — leading and trailing slashes are ignored (verified), `""` is the root. **Start `path` at a top-level folder that exists, or at a name used nowhere in the library** — the first folder is matched by name at any depth; the rule and its checks are in manage-media → Paths. `id` is the web app id (`list_webapps`) or the font id (`list_fonts`). A web app must exist before its upload. A font is created by its first upload: send `name` (and `package`) in place of `id` — exactly one of the two, else `Send id to add a file to a font, or name to create a font` (verified). `filename` is the stored name and decides the served `Content-Type` (verified).
 
 ## Delivering the bytes
 
@@ -34,7 +34,7 @@ There is no upload destination for launchpads, tiles or UI5 themes themselves: t
 - **No redirects** — give the final URL (if you can fetch URLs, a `Location` header in the response shows the redirect). A URL that redirects fails with `… fetch failed`.
 - It must answer a 2xx status (verified with `201`) with a non-empty body no larger than the instance's upload limit (100 MiB by default; the error names the limit in bytes).
 - No headers, cookies or credentials can be sent; `https://user:pass@…` fails with `… Request cannot be constructed from a URL that includes credentials` (verified). A URL that needs a login is not usable — use the `curl` path. A pre-signed download URL (token in the query string) needs no header and can be used.
-- **The content is not checked.** Whatever the URL returns is stored under `filename`; an HTML page from a wrong URL becomes your "image". Use direct file URLs, never a page or a CSS URL that merely mentions the file.
+- **Media content is not checked.** Whatever the URL returns is stored under `filename`; an HTML page from a wrong URL becomes your "image". Font files are checked (below). Use direct file URLs, never a page or a CSS URL that merely mentions the file.
 - The instance's own public URLs (`/media/root/…`, `/public/fonts/…`) work as a source when its host name resolves to a public address (verified) — handy to copy a file to another destination. A host that resolves to a private address is refused like any other.
 
 ### The `curl` path
@@ -60,10 +60,10 @@ Without `sourceUrl` the tool returns `{ "curl": "curl -sS -X PUT -H 'x-planet9-m
 - On success **all previous files are removed**, every zip file is stored as `/<zip path>` and the main file also becomes the entry page (verified). A rejected zip leaves the app unchanged (verified).
 - Build with absolute asset URLs for `/webapp/<name>/` (Vite: `base: '/webapp/<name>/'`); files are served at `/webapp/<name>/<zip path>`.
 
-**Font file** — added to the font's file list, never replacing a file (verified).
-- Any file is accepted (a `.png` was, verified), but UI5 themes use only `.woff2` files and PDFs only `.ttf` / `.otf` — upload nothing else.
+**Font file** — with `id`, added to the font's file list, never replacing a file (verified). With `name`, the file creates the font and the result carries the new id: `{"status":"OK","destination":"font","bytes":21564,"id":"<font id>"}` (verified).
+- Only font files are accepted (verified): another extension is refused at the tool call (`Font file must be .ttf, .otf or .woff2, got '<filename>'`), and bytes that are not a font of that type when they arrive (`'<filename>' is not a valid .woff2 font file`, HTTP 400). UI5 themes use `.woff2` files, PDFs `.ttf` / `.otf`.
 - Name font files with letters, digits, `-`, `_` and `.` only: a `/` makes the file unreachable at `/public/fonts/<font>/<file>`, and a `'` breaks the theme stylesheet that quotes the name.
-- The upload does not assign the file to a style: set `config` with `save_font` afterwards (manage-fonts).
+- A new font gets a default `config` from its first file; a later upload does not assign its file to a style: set `config` with `save_font` afterwards (manage-fonts).
 
 ## Verify
 
@@ -93,10 +93,13 @@ Only how an image or font looks needs a browser — open the page if one is avai
 | `request entity too large` (HTTP 413) | curl path: the file is larger than the upload limit. Nothing stored. |
 | `Invalid or expired upload token` (HTTP 401) | Token missing, altered, or the upload finished more than 5 minutes after the tool call. Call the tool again. |
 | `Font not found` (HTTP 404) / `WebApp not found` (HTTP 400) | Wrong or deleted `id`. |
+| `Font file must be .ttf, .otf or .woff2, got '<filename>'` | Font upload with another extension. Refused at the tool call. |
+| `'<filename>' is not a valid .woff2 font file` (HTTP 400) | The bytes are not a font of the type the extension names. Nothing stored. |
+| `Send id to add a file to a font, or name to create a font` | `upload_font_file` with both `id` and `name`, or with neither. |
 | `Missing index.html file in zip` (HTTP 400; the name is the web app's main file) | No main file at the zip root (or the zip is empty). Nothing changed. |
 | `Error importing zip file` / `Error importing media zip file` (HTTP 500) | The upload is not a valid zip. Nothing changed. |
 | `Error saving files` | Media: a folder name longer than 64 characters (verified), a file name longer than 256, or the file could not be stored. |
-| `Upload into a media folder that belongs to a package.` (HTTP 400) | The instance requires a package and the target folder has none (manage-media → Packages and access). |
+| `Upload into a media folder that belongs to a package.` (HTTP 400) | The instance requires a package and the target folder has none: send `package` with the upload that creates the folder (manage-media → Packages and access). |
 | `Package is a required field` / `No edit access to artifact` | Font or web app upload: the target has no package where one is required, or its package is restricted for you. |
 | `No access to upload <destination>` | The tool refused before issuing a command or downloading: missing edit permission for that destination (Permissions). |
 | `You have no access to the requested resource` (HTTP 403) | curl path: the permission was missing when the command ran. |
@@ -110,7 +113,7 @@ Only how an image or font looks needs a browser — open the page if one is avai
 - Upload a folder — zip it — or more than one file per `upload_media_file` call.
 - Upload a zip of font files — one `upload_font_file` call per file.
 - Change, add or remove a single file of a web app: `upload_webapp_zip` and `save_webapp`'s `assets` both replace the whole file set (verified) — send every file each time (manage-webapps).
-- Create the web app or font an upload targets, or set a font's style slots.
+- Create the web app an upload targets, or set a font's style slots.
 - Make an uploaded media file require login — every uploaded file is public (manage-media).
 - Choose between folders of the same name: the first folder of `path` is matched by name at any depth (see `path` above).
 - Revoke an issued `curl` command before its 5 minutes are over.

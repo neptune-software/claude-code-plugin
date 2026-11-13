@@ -6,8 +6,8 @@
 
 ## Asks in plain words → owner and setting
 
-One line per ask; values and rules live in the owner's SKILL.md / `reference/settings.md`. `config.*` keys need the
-complete `config` in the save (`manage-launchpads`).
+One line per ask; values and rules live in the owner's SKILL.md / `reference/settings.md`. `config.*` keys are merged
+one by one; `config.designer` is sent complete (`manage-launchpads`).
 
 | Ask | Owner | Set |
 |---|---|---|

@@ -7,7 +7,7 @@ The Cockpit **Tile Group** editor, tab by tab, with the `save_tile_group` key fo
 
 | Cockpit label | Key | Values and effect |
 |---|---|---|
-| Name | `name` | Send it on create (the server accepts a group without one). Max 1024. |
+| Name | `name` | Required on create. Max 1024. |
 | Package | `package` | Package id. |
 | Hide Tile Group Header | `hideHeader` | `true` hides title, subtitle and header image. |
 | Hide from All Menus | `hideFromMenu` | `true` keeps the group out of every launchpad menu. |
@@ -24,7 +24,7 @@ The Cockpit **Tile Group** editor, tab by tab, with the `save_tile_group` key fo
 | Menu Text | `menuText` | Replaces the title in launchpad menus. |
 | Description (Deprecated) | `description` | Not shown. |
 | Message → Enable Message | `enableMessage` | Shows the message strip. |
-| Message → Type / Text / Custom Icon / Open Action / Show Close Button / Show Icon | `configMessage.type` / `.text` / `.icon` / `.action` / `.showCloseButton` / `.showIcon` | One object, replaced whole. `type`: `Error`, `Information`, `Success`, `Warning`, `None`. `text` may hold simple HTML. |
+| Message → Type / Text / Custom Icon / Open Action / Show Close Button / Show Icon | `configMessage.type` / `.text` / `.icon` / `.action` / `.showCloseButton` / `.showIcon` | One object, merged field by field. `type`: `Error`, `Information`, `Success`, `Warning`, `None`. `text` may hold simple HTML. Show Icon draws the icon named in `.icon`; with no icon named nothing is drawn. |
 | Message text formatter (button next to the message Text) | `configMessage.formatter` | Optional JavaScript that builds the shown message from the values bound in `text`; its parameters are the placeholders with every character other than letters, digits, `_` and `$` replaced by `_`. Without a formatter the placeholders are bound directly. It runs in every user's browser, unfiltered — only code you trust. Part of `configMessage`: send it with the rest of the object. |
 
 ## Tiles, Tile Groups, Multi Column tabs

@@ -106,7 +106,8 @@ Carry every id forward from the create response; record them for the hand-off. S
 2. **Assets** (`upload-files`) — `upload_media_file` with a direct `sourceUrl` (a website's own files: `reference/intake.md`
    → Collect the site's own assets), or run the returned `curl` once. Always set `TOP_LOGO` (else the Neptune logo and
    favicon show; no logo → a wordmark SVG of the name); light logos for a dark header, one per appearance bucket.
-3. **Font** (`manage-fonts`) — `save_font` with `enableWeb: true` and `config` → `upload_font_file` once per weight → slots.
+3. **Font** (`manage-fonts`) — `upload_font_file` with `name` and the regular file creates the font → `upload_font_file`
+   with its `id` once per further weight → `save_font` with `enableWeb: true` and the `config` slots.
    One **static** `.woff2` per weight (a Google Fonts variable family is one file for every weight and renders them all
    alike; fontsource per-weight files upload directly). Complete the font **before** saving the theme.
 4. **Theme(s)** (`manage-theme-generator`) — `brightness` always; every seed you set as a full H/S/L triple; `FONT_FAMILY` =
@@ -124,8 +125,8 @@ Carry every id forward from the create response; record them for the hand-off. S
    `title`, `customLogo`, `startApp`, `startWebApp` or `launchpadFooter`.
 
 Rules for every step: a save response is not proof — re-read; **create without `id`** and update only ids you read (an
-unknown id creates a broken artifact or fails, depending on the tool); restyling later = `get_launchpad`, change the copy,
-send the complete `config`.
+unknown id fails or creates a stray artifact, depending on the tool); restyling later = `get_launchpad`, change the copy
+of `config.designer`, send it complete (other `config` keys are merged one by one).
 
 ## Step 4 — Verify (headless first)
 
@@ -154,7 +155,7 @@ send the complete `config`.
 - [ ] Every section has tiles; screen groups have short `menuText`; one action target per tile, each target exists.
 - [ ] Step 2b plan holds at 1440 and 390 px (rows, card styles and heights, text budgets, descenders, phone heights,
       scoped `CUSTOM_CSS`); site features built from `reference/techniques.md`, not listed as missing.
-- [ ] `config` complete; `SHELL_BACK_COLOR` + `PAGE_BACK_IMAGE` set; every key in the right bucket; `layout_preference` matches.
+- [ ] `config.designer` complete; `SHELL_BACK_COLOR` + `PAGE_BACK_IMAGE` set; every key in the right bucket; `layout_preference` matches.
 - [ ] Card variants on `:root .<class> .nepFCard` with the whole colour set; "…" button decided.
 - [ ] Baseline re-reads match; HTTP checks (if possible); screenshots or "visual check pending"; contrast passes.
 
@@ -178,7 +179,7 @@ Open items: <tile targets to create, licences to confirm, Cockpit-only steps>
   render — fine for a quick tweak, `manage-launchpads`; a palette belongs in a theme), or create Launchpad Layouts, Tile
   Layouts or Global Styles.
 - Preview or screenshot anything through MCP — the checks above, then a browser if the client has one.
-- Assign a Media Library folder to a package, or find which launchpads use a theme, font or file.
+- Change the package of an existing Media Library folder, or find which launchpads use a theme, font or file.
 
 ## Permissions
 

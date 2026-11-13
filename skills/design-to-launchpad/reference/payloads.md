@@ -15,9 +15,9 @@ image renders black.
 ## 2. Font (manage-fonts)
 
 ```json
-save_font({ "name": "<prefix>_sans", "enableWeb": true, "package": "<package id>", "config": { "web": {}, "pdf": {} } })
-upload_font_file({ "id": "<font id>", "filename": "<prefix>-400.woff2", "sourceUrl": "<static per-weight .woff2 URL>" })  // once per weight
-save_font({ "id": "<font id>", "config": { "web": { "regular": "<prefix>-400.woff2", "semiBold": "<prefix>-600.woff2",
+upload_font_file({ "name": "<prefix>_sans", "package": "<package id>", "filename": "<prefix>-400.woff2", "sourceUrl": "<static per-weight .woff2 URL>" })  // creates the font, returns its id
+upload_font_file({ "id": "<font id>", "filename": "<prefix>-600.woff2", "sourceUrl": "<static per-weight .woff2 URL>" })  // once per further weight
+save_font({ "id": "<font id>", "enableWeb": true, "config": { "web": { "regular": "<prefix>-400.woff2", "semiBold": "<prefix>-600.woff2",
   "semiBoldDuplex": "<prefix>-600.woff2", "bold": "<prefix>-700.woff2" }, "pdf": {} } })
 ```
 File names: letters, digits, `-`, `_`, `.` only.

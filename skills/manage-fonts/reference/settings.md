@@ -7,8 +7,8 @@ The save contract and the rules are in SKILL.md; this file is the lookup table.
 
 | Cockpit input | MCP | Notes |
 |---|---|---|
-| Name (required) | `name` | Becomes the URL folder `/public/fonts/<name>/` and the CSS family prefix `"<name>-Regular"`. |
-| Font Files (required; `.ttf`, `.otf`, `.woff2`) | `upload_font_file` after the create | The Cockpit refuses a font without a file and fills every style slot with the first file of each kind. Over MCP: create with `config`, upload, then fill `config` (SKILL.md → Workflows). |
+| Name (required) | `name` on `upload_font_file` | Becomes the URL folder `/public/fonts/<name>/` and the CSS family prefix `"<name>-Regular"`. |
+| Font Files (required; `.ttf`, `.otf`, `.woff2`) | `upload_font_file` | The Cockpit refuses a font without a file and fills every style slot with the first file of each kind. Over MCP the first upload, sent with `name`, creates the font; upload the other files with its `id`, then set `config` (SKILL.md → Workflows). |
 | Package (when the instance requires one) | `package` | |
 
 ## General tab

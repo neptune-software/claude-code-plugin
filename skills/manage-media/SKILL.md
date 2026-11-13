@@ -85,8 +85,8 @@ The MCP re-reads come first; the URL checks need a shell with `curl` or a fetch 
 
 ## Packages and access
 
-- A top-level folder can belong to a development package for deployment (only when media are stored in the database or Azure); subfolders and files go with it. **MCP cannot assign or change a folder's package** (Cockpit: Media Library → edit folder → package).
-- If the instance requires a package for every artifact, uploads work only into folders that already belong to one (upload-files) — have the folder assigned in the Cockpit first.
+- A top-level folder can belong to a development package for deployment (only when media are stored in the database or Azure); subfolders and files go with it. An upload that creates the top-level folder can put it into a package (`package` on `upload_media_file` / `upload_media_zip`, upload-files). **MCP cannot change the package of an existing folder** (Cockpit: Media Library → edit folder → package).
+- If the instance requires a package for every artifact, upload into a folder that belongs to one, or create the folder by uploading with `package`; without it the upload fails with `Upload into a media folder that belongs to a package.` (verified).
 - A folder whose package is restricted to roles is hidden from users without one of those roles; `get_media_file` there fails with `You have no access to the requested resource`, uploads and deletes with `You do not have edit access to the development package of this media folder.`
 
 ## Errors
@@ -107,7 +107,7 @@ The MCP re-reads come first; the URL checks need a shell with `curl` or a fetch 
 ## What MCP can NOT do
 
 - Create an empty folder (not even the Cockpit keeps one: a folder exists once a file is in it). Rename a folder (Cockpit only). Move or copy files and folders — not possible anywhere: upload again, then delete.
-- Assign a folder to a development package.
+- Change the package of an existing folder.
 - Return a file's content — open its URL instead.
 - List the whole tree in one call — walk it with `list_media_folder_content`, or use `search_media`.
 - Tell a real path from a resolved one: the first folder of a path is matched by name at any depth by `get_media_file`, the deletes and the uploads — check the folder in a listing first.

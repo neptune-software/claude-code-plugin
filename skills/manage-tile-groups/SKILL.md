@@ -22,17 +22,17 @@ An update merges what you send into the stored group: send `id` plus the fields 
 
 | Field | Rules |
 |---|---|
-| `id` | Omit to create. **An `id` that does not exist creates a new group with that id** (verified) — no "not found", and such a create gets no default package. Take ids from `get_tile_group` / `list_tile_groups` only. |
-| `name` | Max 1024. **Always send it on create** — the server accepts a group without one (verified). Not unique. |
+| `id` | Omit to create. An unknown id fails with `Tile group '<id>' not found`; nothing is created (verified). |
+| `name` | Required on create: `A name is required when creating a tile group` (verified). Max 1024. Not unique. |
 | `title`, `subTitle`, `menuText` | Max 256 each (verified); i18n bindings allowed. |
 | `package` | Package id; on create without it your editable default package, else none. |
 | `tiles` | `[{ "id": "<tile id>" }]` in display order. **Present = replaces the whole list, absent = untouched, `[]` = empty** (verified). A nonexistent tile id fails with `Error saving category`, nothing changed (verified). Send each id once — a duplicate is accepted and leaves the stored order out of step (verified). |
 | `tilegroups` | Child groups, `[{ id }]` in display order; same replace rule. **A nonexistent id is dropped silently** (verified) — compare the response with what you sent. Cycles (a group inside itself) are not refused (verified): never create one. |
 | `navbarGroups`, `sidebarGroups` | Groups shown in a navbar column (left) or sidebar column (right) next to this group, `[{ id }]` in order; same replace rule. A nonexistent id fails the save with `Error saving category` (verified; unlike `tilegroups`). |
 | `roles` | `[{ "id": "<role id>" }]`; present = replaced, absent = kept, `[]` = cleared; a nonexistent id fails with `Error saving category` (verified). |
-| `configMessage` | `{ type, text, icon, action, showCloseButton, showIcon, formatter }` — `type` `Error`, `Information`, `Success`, `Warning`, `None`; `text` simple HTML, in which placeholders such as `{i18n.<model>>key}` are bound; `action` a URL; `formatter` optional JavaScript that builds the shown text from the bound values (reference/settings.md → Information tab). Shown while `enableMessage` is `true`. **One value: send the complete object, including an existing `formatter`** (`{ "text": "…" }` alone drops the rest, verified). Remove: `enableMessage: false` + `configMessage: {}` (`null` fails, verified). |
+| `configMessage` | `{ type, text, icon, action, showCloseButton, showIcon, formatter }` — `type` `Error`, `Information`, `Success`, `Warning`, `None`; `text` simple HTML, in which placeholders such as `{i18n.<model>>key}` are bound; `showIcon: true` shows the icon named in `icon`, so name one (`sap-icon://message-warning`, `sap-icon://message-success`): the type alone supplies none (verified); `action` a URL; `formatter` optional JavaScript that builds the shown text from the bound values (reference/settings.md → Information tab). Shown while `enableMessage` is `true`. **Merged field by field** (verified): `{ "text": "…" }` alone changes the text and keeps the rest, an existing `formatter` included; send `"formatter": ""` to clear it. Hide the notice with `enableMessage: false` (`configMessage: null` fails, verified). |
 | `translation` | Deprecated; use i18n bindings in `title` / `subTitle`. |
-| `tilesOrder`, `tilegroupsOrder`, `navbarGroupOrder`, `sidebarGroupOrder` | **Never send these** — the order comes from the relation arrays. Sent alone they break `get_tile_group` (`Error fetching category`) and, for tiles/child groups, the launchpad page (HTTP 500) until you re-send the matching array (verified; Repair). |
+| `tilesOrder`, `tilegroupsOrder`, `navbarGroupOrder`, `sidebarGroupOrder` | **Never send these** — the order comes from the relation arrays. Sent alone they break `get_tile_group` and `get_launchpad` with `includeTiles` (`Error fetching category`) until you re-send the matching array (verified; Repair). A broken `tilesOrder` also makes the launchpad page answer HTTP 500; with a broken `tilegroupsOrder` the page still answers 200 but shows no groups or tiles (verified). |
 
 Silently ignored (verified): `pad` (assign groups to launchpads with `save_launchpad`), `childgroups`, `childNavbarGroups`, `childSidebarGroups`, `i18n`, `NAME`, `application`, `accessLevel`, `includeDataInPackage`, `createdBy`, `changedBy`, `ver`, and unknown keys.
 
@@ -113,7 +113,7 @@ values (`manage-launchpads`). The rules that decide what renders:
 
 1. `get_tile_group({ id })` succeeds and returns the fields and relation arrays you sent — missing or different = ignored; `Error fetching category` = broken group (Repair).
 2. `get_launchpad({ id, includeTiles: true })` (`manage-launchpads`) shows the top-level groups in order with their tiles and child-group references; check a child, navbar or sidebar group with `get_tile_group` on its parent (`tilegroups`, `navbarGroups`, `sidebarGroups`).
-3. Header images and the launchpad page: the HTTP checks in `manage-tiles` → Verify (500 = broken tile or child-group order; a broken navbar/sidebar order still answers 200 — step 1 catches it).
+3. Header images and the launchpad page: the HTTP checks in `manage-tiles` → Verify (500 = broken tile order; a broken child-group, navbar or sidebar order still answers 200 — step 1 catches it).
 4. Pixels: signed-in browser if available, screenshot, compare, move on. Look for: a heading cut off or spilling past the screen edge, a row of tiles not centred under its heading, a lone last tile at phone width, mixed card styles or heights in one row, unreadable headers in dark appearance.
 
 ## Delete
@@ -125,18 +125,20 @@ values (`manage-launchpads`). The rules that decide what renders:
 
 ## Listing and filtering
 
-Filterable and sortable: `name`, `title`, `description`, `roleTag`, `package`, `cockpitTileGroup`, `inclFav`, `ver`, `createdBy`, `changedBy`, `createdAt`, `updatedAt`. `select` also takes `subTitle`, `menuText`, `icon`, `backgroundType`, `id`; other keys are dropped (verified). Paging, `order` and dropped `where` keys work as in `manage-tiles` → Listing. Contents, roles and launchpads are not in the list — `get_tile_group` each candidate.
+Filterable and sortable: `name`, `title`, `description`, `roleTag`, `package`, `cockpitTileGroup`, `inclFav`, `ver`, `createdBy`, `changedBy`, `createdAt`, `updatedAt`. `select` also takes `subTitle`, `menuText`, `icon`, `backgroundType`, `id`; other keys are dropped (verified). `where` also takes `id`; paging, `order` and refused `where` keys work as in `manage-tiles` → Listing. Contents, roles and launchpads are not in the list — `get_tile_group` each candidate.
 
 ## Errors
 
 | Signal | Meaning / fix |
 |---|---|
 | `Error saving category` | A tile, navbar/sidebar group, role or package id that does not exist, or `configMessage: null`. Nothing saved; confirm ids with their `get_*` tools. |
-| `Error fetching category` | From `get_tile_group`, or `get_launchpad` with `includeTiles`: an `*Order` field was sent without its relation array. Repair. The launchpad page answers HTTP 500 while `tiles` or `tilegroups` is affected; a broken navbar/sidebar order only drops that column. |
+| `Tile group '<id>' not found` | `save_tile_group` with an unknown `id`. Nothing is created. |
+| `A name is required when creating a tile group` | Create without `name`. |
+| `Error fetching category` | From `get_tile_group`, or `get_launchpad` with `includeTiles`: an `*Order` field was sent without its relation array. Repair. The launchpad page answers HTTP 500 while `tiles` is affected; with `tilegroups` it answers 200 and shows no groups or tiles; a broken navbar/sidebar order only drops that column. |
 | `Tile group '<name>' still has … Re-run with confirm set to true …` | Delete refused; see Delete. |
 | `Not Found` | `get_tile_group` / `delete_tile_group` with an unknown id. |
 | `MCP error -32602: … at tileGroup.<field>` | Wrong type, enum value, non-UUID id, or a string over its maximum length. Nothing saved. |
-| `Error listing category` | `order` on a field not in `select`, or a malformed filter value. |
+| `Error listing category` | `order` on a field the list does not return (add it to `select`), or a malformed filter value. |
 | `Package is a required field` / `No edit access to artifact` / `Your default package cannot be used: …` | Send a package you may edit. |
 | `Access denied: no permission for category` | Missing Tile Group permission. |
 
