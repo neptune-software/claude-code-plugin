@@ -41,7 +41,7 @@ There is no filter by SAP data source and no way to change the histogram's aggre
 
 A list result is `{ numRecords, logs, requests, feedback, tools }`. Only `numRecords` counts every match. `requests` (an hourly histogram), `feedback` and `tools` (calls per tool name; pending calls count as successful) summarize **only the returned page**.
 
-- **Use a short window.** `requests` has one entry per hour for every whole day in the window (a partial last day gets none), even when `end` is 1. Two years produced about 17,500 entries (about 320 KB). A window under 24 hours returns `requests: []`.
+- **Use a short window.** `requests` has one entry per hour of the window, even when `end` is 1. Two years produced about 17,500 entries (about 320 KB). Some servers count whole days only: there a partial last day gets no entries and a window under 24 hours returns `requests: []`.
 - **Page in fives.** Each log carries the full input, answer, filled-in instructions, variables and every step with tool arguments and results: 166 error traces came to about 10 MB.
 - `get_agent_trace_log` can be large too: `files[].data` is the whole file sent with the request, and `vectors[].data` the matched rows.
 - `createdBy` is the triggering user's username, `changedBy` a user id. `temperature` is a string, `"undefined"` when the agent sets none.
