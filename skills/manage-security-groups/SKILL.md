@@ -15,17 +15,17 @@ A **security group** (Cockpit: Security Groups) bundles **users** and **roles**:
 
 | Tool | Purpose |
 |---|---|
-| `list_security_groups({ listOptions? })` | `id`, `name`, `description`, `package`, `updatedAt`; `where`/`order` on `name`, `description`, `idpSource`, `package`, `changedBy`, `updatedAt` — a filter on any other key (such as `id`) is dropped and returns unfiltered groups; use `get_security_group` for an id. |
+| `list_security_groups({ listOptions? })` | `id`, `name`, `description`, `package`, `updatedAt`; `where`/`order` on `id`, `name`, `description`, `idpSource`, `package`, `changedBy`, `updatedAt` (another `where` key is refused: `Unrecognized key(s) in object`). Sort on a field that is among the returned fields: add `select` to sort on `idpSource` or `changedBy` (otherwise the list can fail with `Error listing department`). `{ items, hasMore, nextSkip? }`. |
 | `get_security_group({ id })` | `name`, `description`, `idpSource`, `idpSourceId`, `idpSourceKey`, `package`, `roles` (full role rows incl. `isGlobalAdmin`), `users` (`id`, `username`, `name`, `email`, `locked`, `admin`, `idpSource`, `lastLogin`, …). Unknown id: `Not Found`. |
 | `save_security_group({ id?, name, description?, roles?, users?, idpSource?, idpSourceId?, idpSourceKey?, package? })` | Create (no `id`) or update (with `id`). The fields are passed directly, not wrapped. |
 | `delete_security_group({ id })` | Permanent (`{"status":"Security Group deleted"}`); members lose the group's roles. Unknown id: `Not Found`. |
 
 ## Save rules
 
-- `name`: required on create (without it: `save_security_group failed: Error saving department`), unique (`name '<name>' already exists!`), max 64.
-- **`roles` and `users`** (`[{ id }]`): each is replaced as a whole when sent and kept when left out; `[]` clears it. To add one user, send the current members plus the new one. An unknown role id fails with only `save_security_group failed: Error saving department` (the group is unchanged).
-- `idpSource` is a label shown in the Cockpit list (free text up to 16 characters, e.g. `local`, `saml`, `azure-bearer`); **every save without it sets it back to `local`**, so send the current value on updates. `idpSourceId` must be a UUID. Sign-in through SAML, Azure, OpenID Connect, OAuth2 or JWT does not use these fields (see below).
-- A save with an `id` that does not exist creates a new group with that id. Unknown keys are dropped. On create without `package`, the caller's default package applies.
+- `name`: required on create (without it the save fails: `Error saving department` or `name is required`), unique (`name '<name>' already exists!`), max 64.
+- **`roles` and `users`** (`[{ id }]`): each is replaced as a whole when sent and kept when left out; `[]` clears it. To add one user, send the current members plus the new one. An unknown id fails and leaves the group unchanged (`Roles not found: <ids>`, `Users not found: <ids>`).
+- `idpSource` is a label shown in the Cockpit list (free text up to 16 characters, e.g. `local`, `saml`, `azure-bearer`): `local` on create when left out, kept on updates. `idpSourceId` must be a UUID. Sign-in through SAML, Azure, OpenID Connect, OAuth2 or JWT does not use these fields (see below).
+- Fields left out of an update keep their values. A save with an `id` that does not exist fails with `Security Group Not Found`, an unknown `package` with `Package Not Found`. On create without `package`, the caller's default package applies.
 
 ## Identity-provider groups
 
@@ -38,7 +38,7 @@ At sign-in through SAML, Azure, OpenID Connect, OAuth2 or JWT, the user is added
 
 **Give users a role**: `list_roles` (the role id; confirm `isGlobalAdmin: false`) → `list_users` (user ids) → `save_security_group({ "name": "Sales team", "roles": [{ "id": "<role>" }], "users": [{ "id": "<user>" }, …] })` → `get_security_group` to confirm members and roles.
 
-**Add a user to an existing group**: `get_security_group` (check its roles) → `save_security_group({ "id", "name", "idpSource": <current>, "users": [ …current ids…, { "id": "<new user>" } ] })`.
+**Add a user to an existing group**: `get_security_group` (check its roles) → `save_security_group({ "id", "users": [ …current ids…, { "id": "<new user>" } ] })`.
 
 ## Related skills
 
