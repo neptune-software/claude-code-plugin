@@ -23,11 +23,11 @@ An update merges what you send into the stored guardrail (verified): send `id` p
 | Field | Rules |
 |---|---|
 | `id` | Omit to create. **Never send `"id": ""` — it creates a new guardrail** (verified). An unknown id fails with `AI Guardrail not found` — an update never creates (verified). |
-| `name` | Required on create (missing: `Error saving ai_guardrail`; `""`: `String must contain at least 1 character(s) at aiGuardrail.name`); on an update, send it only to rename (verified). Unique — `name '<name>' already exists!` — but the database does the comparison: on PostgreSQL different-case and padded names count as different, and names of only spaces or of any length are stored (verified); other databases may treat case or trailing-space variants as the same name. **Use letters, digits and `_` only (the Cockpit's rule), at most 64 characters, and check the name is free first (see Listing for the `_` wildcard).** |
-| `type` | `llm` (Cockpit: AI Model), `function` (Script), `rule_based` (Rules Engine). **Always send it on create** — the schema shows a default `llm`, but a create without `type` fails with the bare message `Required` (verified). **On an update, send `type` only to switch**, together with the new reference and `null` for the old one: `{ "id": "…", "type": "llm" }` alone re-types the guardrail silently whenever a `model` happens to be stored (verified). |
+| `name` | Required on create (missing: `Error saving ai_guardrail`, or `Validation error!` with `name is required`); on an update, send it only to rename (verified). **Trimmed**: a padded name is the same name as the unpadded one, and `""` or a name of only spaces fails with `String must contain at least 1 character(s) at aiGuardrail.name` (verified). Unique — `name '<name>' already exists!` — and the database decides about case: PostgreSQL stores `MY_GUARD` next to `my_guard`, SQL Server refuses it (verified). A name over 64 characters fails on some instances (`Error saving ai_guardrail` or `Unable to save AI Guardrail`) and is stored on others (verified). **Use letters, digits and `_` only (the Cockpit's rule), at most 64 characters, and check the name is free first (see Listing for the `_` wildcard).** |
+| `type` | `llm` (Cockpit: AI Model), `function` (Script), `rule_based` (Rules Engine). **Always send it on create**: a create without `type` fails with the bare `Required`, or with `Validation error!` and `type is required` (verified). **On an update, send `type` only to switch**, together with the new reference and `null` for the old one: `{ "id": "…", "type": "llm" }` alone re-types the guardrail silently whenever a `model` happens to be stored (verified). |
 | `model` / `script` / `rulesengine` | The type's reference (see Types), required on every save: `model is required for guardrail type 'llm'` (also `script is required for guardrail type 'function'`, `rulesengine is required for guardrail type 'rule_based'`); `""` counts as missing (verified). **Send only the reference of the type** — the others are stored as well and then show up in filters and in the model's `whereUsed.guardrails` (verified). **Confirm the id with its own `get_*` tool first**: a nonexistent id, or the id of another kind of artifact, fails with the bare `Error saving ai_guardrail` (verified). |
 | `prompt` | The instruction of an `llm` guardrail — see Instructions. **Send it only for `llm`**; the save also stores it as a version on the other types (verified for `function`). |
-| `config` | `{ "denyOnError": true\|false }` (Cockpit: Deny on Error). **Replaced, not merged: send the full `config` or omit it** — `config: {}` or `null` stores `denyOnError: false`; other keys are dropped (verified). |
+| `config` | `{ "denyOnError": true\|false }` (Cockpit: Deny on Error). **Replaced, not merged: send the full `config` or omit it** — `config: {}` or `null` switches Deny on Error off (stored as `denyOnError: false` or as an empty `config`); other keys are dropped (verified). |
 | `description`, `version` | Free text. `description` is stored exactly as sent, no trimming (verified). `ver` is the server's save stamp. |
 | `package` | Package id. On create without it: your default development package when one is set and you may edit it, otherwise none (verified for the no-default case). `package: null` removes it unless the instance requires packages (verified). Moving an `llm` guardrail to another package moves its versions; `package: null` leaves them in the old package (verified). |
 
@@ -41,7 +41,7 @@ Also on save and delete: `<name> is locked by <user> since <time>` when someone 
 |---|---|---|
 | `llm` (AI Model) | `model` | A completion model — pick it with `list_ai_models` and `where: { "outputType": "text" }`; the save also accepts an embedding model (verified). Give it instructions (`prompt.txt`): the save accepts an `llm` guardrail without any. |
 | `function` (Script) | `script` | A server script implementing the contract below (`manage-server-scripts`). |
-| `rule_based` (Rules Engine) | `rulesengine` | A Rules Engine with the interface property `content` (optionally `username`) whose rules return `deny` to block. No MCP tool lists Rules Engines: take the id from the Cockpit or from an existing `rule_based` guardrail's `rulesengine` (verified). |
+| `rule_based` (Rules Engine) | `rulesengine` | A Rules Engine with the interface property `content` (optionally `username`) whose rules return `deny` to block. Take the id from `list_rulesengines` when the server has the Rules Engine tools (verified); without them, from the Cockpit or from an existing `rule_based` guardrail's `rulesengine` (verified). |
 
 Script contract of a `function` guardrail:
 
@@ -96,7 +96,7 @@ save_ai_agent({ "aiAgent": { "id": "<agent id>",
 
 ## Workflows
 
-**Create and attach**: check the name is free → `get_*` the model / script / rules engine → `save_ai_guardrail` with `type`, the one reference, `config` and (for `llm`) `prompt.txt` → check the response (`type`, the reference id, `config`, `prompt`) → `get_ai_agent` → `save_ai_agent` with the full array including the new id → `get_ai_guardrail` lists the agent in `whereUsed.agents`.
+**Create and attach**: check the name is free → `get_*` the model or script (a Rules Engine too, where the server has `get_rulesengine`) → `save_ai_guardrail` with `type`, the one reference, `config` and (for `llm`) `prompt.txt` → check the response (`type`, the reference id, `config`, `prompt`) → `get_ai_agent` → `save_ai_agent` with the full array including the new id → `get_ai_guardrail` lists the agent in `whereUsed.agents`.
 
 **Change or roll back the instruction**: `{ "id": "…", "prompt": { "txt": "<new full text>" } }`, or `{ "id": "…", "prompt": { "id": "<version id from promptVersions>" } }` and confirm `prompt.id`.
 
@@ -120,9 +120,9 @@ Repair with `{ "id": "…", "model": "<completion model id>" }` (or `script` / `
 
 Filterable and sortable: `name`, `type`, `description`, `version`, `model`, `script`, `rulesengine`, `package`, `createdBy`, `changedBy`, `createdAt`, `updatedAt`; several `where` fields combine with AND.
 
-- **Fetch one guardrail with `get_ai_guardrail`.** A `where` key outside the list (`id`, `config`, anything unknown) is dropped without error while the other filters still apply — `where: { "id": … }` alone returns the whole list (verified).
+- `where` also takes `id`. Any other key (`config`, anything unknown) is refused: `Unrecognized key(s) in object: '<key>' at listOptions.where` (verified).
 - `select` takes the fields above plus `id`, each `true` (`false` fails validation). Unknown keys and `config` are dropped; `id` always comes back, and if no valid key is left the default summary comes back (verified).
-- **Put the sort field in `select`**: ordering by a field the response does not contain fails with `Error listing ai_guardrail` — the summary has no `createdAt` (verified).
+- **Sort on a field the response contains**: for one outside the summary, such as `createdAt`, add it to `select` — `{ "select": { "id": true, "name": true, "createdAt": true }, "order": { "createdAt": "DESC" } }`. Without it the list can fail with `Error listing ai_guardrail` (verified).
 - **Always send `order` when paging**; without it pages overlap and skip rows (verified). Walk pages with `skip` = `nextSkip` while `hasMore` is true. `take` defaults to 25 (verified) and is capped at 200; `0` or less counts as 1, without error (verified).
 - **Use UUIDs in id filters** (`model`, `script`, `rulesengine`, `package`) — a malformed value fails with `Error listing ai_guardrail` (verified).
 - Exact matches and `Like` are case-sensitive on PostgreSQL; use `ILike` for names (verified). **`_` and `%` are wildcards in `Like`/`ILike`**: to check that `my_guard` is free, compare each returned `name` exactly.
@@ -132,7 +132,8 @@ Filterable and sortable: `name`, `type`, `description`, `version`, `model`, `scr
 
 | Signal | Meaning / fix |
 |---|---|
-| `Required` | Create without `type`. |
+| `Validation error!` with `name is required` / `type is required` (or the bare `Error saving ai_guardrail` / `Required`) | Create without `name` / `type`. |
+| `Unable to save AI Guardrail` | The database refused the save, for example a name over 64 characters. |
 | `model is required for guardrail type 'llm'` (also `script …'function'`, `rulesengine …'rule_based'`) | The type's reference is missing — on create, when cleared, or on any save after the referenced artifact was deleted. Send a valid reference. |
 | `name '<name>' already exists!` | Duplicate name (possibly in a package you cannot see). |
 | `AI Guardrail not found` | `save_ai_guardrail` with an unknown `id`. |
@@ -142,13 +143,13 @@ Filterable and sortable: `name`, `type`, `description`, `version`, `model`, `scr
 | `… Invalid enum value. Expected 'llm' \| 'rule_based' \| 'function', received '<x>' at aiGuardrail.type` / `… Expected boolean, received string at aiGuardrail.config.denyOnError` | Wrong `type` / `denyOnError`. |
 | `Error saving ai_guardrail` | A reference or package id that does not exist or is another kind of artifact, a create without `name`, a name too long for the database, or a `prompt` without AI Prompts edit permission. Re-read before retrying. |
 | `Error saving ai_agent` | Attaching: a duplicate, nonexistent or non-guardrail id, or `inputGuardrailsMap` / `outputGuardrailsMap`. Nothing changed. |
-| `Error listing ai_guardrail` | `order` on a field not in `select`, or a malformed filter value. |
+| `Error listing ai_guardrail` | `order` on a field the response does not contain (add it to `select`), or a malformed filter value. |
 | `Access denied: no permission for aiguardrail` | Missing Guardrails permission. |
 
 ## What MCP can NOT do
 
 - Run or test a guardrail (Cockpit: Guardrails → Test).
-- Create, list or edit Rules Engines and their rules.
+- Create, list or edit Rules Engines and their rules on a server without the Rules Engine tools (`list_rulesengines`, `get_rulesengine`, `save_rulesengine`): use the Cockpit there.
 - Read the text of inactive versions, or delete single versions.
 - Filter the list by usage (attached or not, which agent) or by `config` — `get_ai_guardrail` each candidate.
 - Attach a guardrail from the guardrail side, or tell from `whereUsed` whether an agent uses it as input or output (`get_ai_agent` does).
