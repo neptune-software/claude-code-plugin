@@ -9,7 +9,7 @@ A **connector** is a named data source with a **field catalog** (the fields it o
 
 | Tool | Purpose |
 |---|---|
-| `list_connectors({ listOptions? })` | Summaries `id`, `name`, `description`, `type`, `package`, `updatedAt`; `{ items, hasMore, nextSkip? }`. `where`/`order` work on `name`, `description`, `group`, `type`, `disabled`, `package`, `createdBy`, `changedBy`, `createdAt`, `updatedAt`; a `where` on any other key (such as `id`) is dropped and returns **unfiltered** results. `select` returns only the named keys plus `id` (it can name `settings`, `group`, `disabled`, `createdBy`, `ver`). |
+| `list_connectors({ listOptions? })` | Summaries `id`, `name`, `description`, `type`, `package`, `updatedAt`; `{ items, hasMore, nextSkip? }`. `where`/`order` work on `id`, `name`, `description`, `group`, `type`, `disabled`, `package`, `createdBy`, `changedBy`, `createdAt`, `updatedAt`; another `where` key is refused (`Unrecognized key(s) in object`). Sort on a field that is among the returned fields: add `select` to sort on one outside the summary (otherwise the list can fail with `Error listing connector`). `select` returns only the named keys plus `id` (it can name `settings`, `group`, `disabled`, `createdBy`, `ver`). |
 | `get_connector({ id })` | Full connector with `settings`, `roles` (`[{ id, name }]`) and `whereUsed`: `{ adaptive: [{ id, name }], pdfs: [{ id, application }] }` (App Designer apps are not listed). Unknown id: `Not Found`. |
 | `get_connector_field_catalog({ id })` | The fields the connector offers now, `[{ name, label, type, usage, … }]`. For a script connector this **runs** `scriptSel`, with its side effects, for anyone allowed to display connectors. |
 | `save_connector({ connector })` | Create (no `id`) or update (with `id`). |
@@ -24,11 +24,11 @@ A **connector** is a named data source with a **field catalog** (the fields it o
 | `A` | An API (`manage-apis`) | `apis.get`, `apis.list`, `apis.save`, `apis.delete`, all four, each `{ "api": "<api id>", "path": "<operation id>" }` | `settings.fieldCatalog` (you write it; without it the catalog read fails with `Field catalog not found`) |
 | `F` | An SAP system (`manage-remote-systems`) | `sapaf.system` (remote system id), `sapaf.type`, `sapaf.entityKey1` | The SAP system |
 
-- **API `path` is the operation id**, the `id` of the entry in `get_api` → `paths`, not the URL path. The save does not check it; a URL path saves fine and every run fails.
-- **SAP `sapaf.type`** is `SHLP` (search help: `entityKey1` = search-help type such as `SH`, `entityKey2` = search-help name, needed) or `PROG` (`entityKey1` = program name). Any other value saves and gives an empty catalog. A wrong system id gives `Error getting AFClient`. `F` connectors have no preview.
-- A missing operation or `sapaf` object fails with `Missing required settings for connector type '<type>': settings.<path>, …`. Any `apis.<op>` you send needs both `api` and `path`, and any `sapaf` needs `system`, `type` and `entityKey1`; a partial object fails input validation (`MCP error -32602 … Required at connector.settings.apis.get.path`). Ids are not checked on save: a wrong table, script or API shows up only when the catalog is read (`Table … not found`, `Script not found`, `API not found`) or the connector runs.
+- **API `path` is the operation id**, the `id` of the entry in `get_api` → `paths`, not the URL path. A URL path is refused (`Invalid uuid at connector.settings.apis.<op>.path`), and an operation the API does not have fails with `API '<api id>' with operation '<path>' does not exist`.
+- **SAP `sapaf.type`** is `SHLP` (search help: `entityKey1` = search-help type such as `SH`, `entityKey2` = search-help name, needed) or `PROG` (`entityKey1` = program name). Any other value saves and gives an empty catalog. The system id is not checked on save: a wrong one saves, and the catalog read then fails with `Error getting AFClient`. `F` connectors have no preview.
+- A missing operation or `sapaf` object fails with `Missing required settings for connector type '<type>': settings.<path>, …`. Any `apis.<op>` you send needs both `api` and `path`, and any `sapaf` needs `system`, `type` and `entityKey1`; a partial object fails input validation (`MCP error -32602 … Required at connector.settings.apis.get.path`). The save checks the ids: a wrong table or script is refused (`Table with id '<id>' does not exist`, `Script with id '<id>' does not exist`), as is a wrong API operation (above). A table, script or API deleted afterwards shows up when the catalog is read (`Table … not found`, `Script not found`, `API not found`) or the connector runs.
 
-Other fields: `name` (required, unique, max 256), `description` (max 1024), `group` (max 256, free text), `package` (on create, the caller's default package applies; `Package is a required field` when packages are enforced), `disabled` (stored only; nothing at run time reads it), `documentation: { content }`, `roles`, and in `settings`: `startParam` (passed to the scripts of an `S` connector), `previewable` (allows the Cockpit preview), `overriddenFieldCatalog`, `fieldCatalog`. Unknown keys are dropped without an error.
+Other fields: `name` (required, unique, max 256), `description` (max 1024), `group` (max 256, free text), `package` (on create, the caller's default package applies; `Package is a required field` when packages are enforced), `disabled` (stored only; nothing at run time reads it), `documentation: { content }`, `roles`, and in `settings`: `startParam` (passed to the scripts of an `S` connector), `previewable` (allows the Cockpit preview), `overriddenFieldCatalog`, `fieldCatalog`. Unknown keys are dropped without an error; an unknown role or package is refused (`Roles not found: <ids>`, `Package with id '<id>' does not exist`).
 
 ### Script connector (`S`)
 
@@ -50,7 +50,7 @@ switch (req.query.method) {
     case "Get":    result.data = await getOne(req.body.id); break;
     case "Save":   result.data = { savedItem: await saveOne(req.body), status: "OK" }; break;
     case "Delete": await deleteOne(req.body.id); result.data = { status: "OK" }; break;
-    default: {     // "List"; req.body._preview is true when the designer previews
+    default: {     // "List", and the designer preview (no method; req.body._preview is true)
         const items = await list(req.body);
         result.data = { result: items, count: items.length };
     }
@@ -58,7 +58,7 @@ switch (req.query.method) {
 complete();
 ```
 
-How `get_connector_field_catalog` reports a bad `scriptSel`: a non-array, or objects missing `name`/`label`/`type`, give `Returned data from selection script was not a fieldCatalog. Should be an array of objects with properties name, label and type`. An array of non-objects or a script that throws gives only `Error in getFieldCatalogScript`, with the script's own message lost, so test the script with `run_server_script` first. `[]` is accepted as an empty catalog. Entry `type` values are not checked here.
+How `get_connector_field_catalog` reports a bad `scriptSel`: a non-array, an array of non-objects, or objects missing `name`/`label`/`type`, give `Returned data from selection script was not a fieldCatalog. Should be an array of objects with properties name, label and type`. A script that throws gives only `The script is failing`, with the script's own message lost, so test the script with `run_server_script` first. `[]` is accepted as an empty catalog. Entry `type` values are not checked here.
 
 ### Field catalog entries
 
@@ -71,13 +71,13 @@ For `T`, `S` and `F` the catalog comes from the source. To replace it, send `ove
 
 ## Save rules
 
-- **Updates merge.** Fields you do not send keep their values; `settings` is merged key by key (`apis` and `sapaf` one level deeper, but each object you send must be complete, see above). An update adds empty `apis: {}` and `sapaf: {}`. `fieldCatalog` and `roles` are replaced as a whole when sent.
+- **Updates merge.** Fields you do not send keep their values; `settings` is merged key by key (`apis` and `sapaf` one level deeper, but each object you send must be complete, see above). `fieldCatalog` and `roles` are replaced as a whole when sent.
 - **`roles`** (`[{ id }]`, ids from `list_roles`) restrict direct calls to the connector, such as from an App Designer connector component: the user, directly or through a security group, needs one of them; empty means every signed-in user. **An Adaptive app runs its connector under the Adaptive app's own roles**, so set roles on the app (`manage-adaptive`) to protect its data. An update without `roles` keeps them; `roles: []` clears them. The save response includes `roles` only when the call sent them; read the stored list with `get_connector`.
 - Errors: `name is required`, `type is required`, `name '<name>' already exists!`, `Connector <id> not found` (update of an unknown id); a `type` other than `T`, `S`, `A`, `F` fails input validation. When someone has the connector open in the Cockpit, save and delete fail with the lock message.
 
 ## Delete
 
-- **An Adaptive app that uses the connector makes the delete fail** with `Error deleting connector` (on some databases the app's link is cleared instead). Point the app at another connector or delete it first (`whereUsed.adaptive`).
+- **An Adaptive app that uses the connector makes the delete fail** with `Cannot delete connector: it is used by adaptive app(s) '<name>'. Remove the connector from these apps first.` Point the app at another connector or delete it first (`whereUsed.adaptive`).
 - A PDF template keeps the deleted connector's id, and activating it again (`activate_pdf_template`) fails with `Error activating pdf` until it gets another connector (`whereUsed.pdfs`).
 - **App Designer apps bind a connector by name** and are not in `whereUsed`: deleting or renaming the connector silently breaks them. Search the apps before renaming or deleting (`manage-apps`).
 - An unknown id returns `Not Found`.
