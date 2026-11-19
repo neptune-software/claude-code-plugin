@@ -47,7 +47,7 @@ Every node has the same envelope. `position` is canvas pixels — it does not af
 Node ids follow BPMN convention and are referenced by edges, execution logs, and binding expressions, so choose them deliberately and never renumber an id that a live execution or an expression already points at:
 
 - `Event_*` — start and end
-- `Activity_*` — every task (script, email, user, agent, table interaction)
+- `Activity_*` — every task (script, email, user, agent, table interaction, trigger)
 - `Gateway_*` — every gateway, merge included
 - `Flow_*` — edges
 
@@ -62,9 +62,12 @@ Node ids follow BPMN convention and are referenced by edges, execution logs, and
 | `userTask` | `title`, `approverGroup`, `taskActions` | Pauses the flow until a human answers. |
 | `sendEmail` | `to`, `templateId` | Optional `cc`, `bcc`, `tokens`, `pdfAttachment` + `pdfTemplateId`. Addresses may be literal or a binding token. |
 | `agentTask` | `agentId` | Hands the whole visible output model to an AI agent as its prompt. |
+| `trigger` | `event.id` (a UUID) | Starts whatever its event points at: a script, job, process flow or app event. The designer saves `event` as `{ id, name }`; `name` is optional and only appears in the "Event … no longer exists" error. `body` is the payload, and its string values can be binding tokens. A process flow event's `body` must be `{ interfaceData: {...} }`; job events take no `body`. A flow can't trigger its own process flow event. No output. |
 | `exclusiveGateway` | `conditions` (>= 1) | Takes the **first** branch whose condition is true. |
 | `inclusiveGateway` | `conditions` (>= 1) | Takes **every** branch whose condition is true. |
 | `mergeGateway` | — | The join. Brings branches back together. |
+
+Only use node types that the `save_processflow` schema accepts on this server; newer types such as `trigger` won't exist on older versions.
 
 ### `tableInteraction`
 
@@ -185,13 +188,13 @@ The flow's `interface` array is the declared shape of that input (`{ id, parent,
 - **`save_processflow` is lenient.** It saves anything and reports problems in `validation.errors`. An empty `errors` array is the only confirmation that the graph is sound — always read it back.
 - **`run_processflow` is strict.** It refuses to start an execution while any error stands.
 
-What it checks: exactly one `start` and exactly one `end`; no node connected to itself; every node reachable from the start; the end reachable; no node other than the end left without an outgoing edge; and each node type's own required fields (a script node needs a script, a gateway needs at least one condition with a non-empty expression, a user task needs a title, approvers and actions, an email node needs a valid recipient and a template).
+What it checks: exactly one `start` and exactly one `end`; no node connected to itself; every node reachable from the start; the end reachable; no node other than the end left without an outgoing edge; and each node type's own required fields (a script node needs a script, a gateway needs at least one condition with a non-empty expression, a user task needs a title, approvers and actions, an email node needs a valid recipient and a template, a trigger node needs an `event` whose `id` is a UUID).
 
 It does **not** check that your handles are right, that a referenced script or api id exists, or that a binding expression names a real node — those fail at run time, usually as a branch quietly not taken.
 
 ## A worked example graph
 
-Every node type in one flow: start, table interaction, script, exclusive gateway splitting to a user task and an email, a merge, an agent task, end. The email, agent and table nodes are shown as the designer drops them, with only a label — each still needs its required `data` fields filled in before the flow will pass validation.
+Every node type in one flow: start, table interaction, script, exclusive gateway splitting to a user task and an email, a merge, an agent task, a trigger, end. The email, agent and table nodes are shown as the designer drops them, with only a label — each still needs its required `data` fields filled in before the flow will pass validation.
 
 Fields the canvas maintains for itself appear here too, and you do not author them: `hasMultipleIncomingWarning`, `hasMergeWarning` and `mergeWarning` drive warning badges on a node, and an edge's `isRouteAbove` picks which way the connector routes around obstacles.
 
@@ -216,11 +219,16 @@ Fields the canvas maintains for itself appear here too, and you do not author th
             "taskActions": [ { "id": "<uuid>", "title": "Approve", "value": "approve" } ],
             "hasMultipleIncomingWarning": false } },
         { "id": "Gateway_join1", "type": "mergeGateway", "position": { "x": 1180, "y": 304 }, "data": { "label": "Join" } },
-        { "id": "Event_end001", "type": "end", "position": { "x": 1897, "y": 307 }, "data": { "label": "Done" } },
+        { "id": "Event_end001", "type": "end", "position": { "x": 2265, "y": 307 }, "data": { "label": "Done" } },
         { "id": "Activity_i28ecxi", "type": "sendEmail", "position": { "x": 779.26953125, "y": 373.52734375 },
           "data": { "label": "Send Email", "hasMultipleIncomingWarning": false } },
         { "id": "Activity_2wgxw3g", "type": "agentTask", "position": { "x": 1529.6953125, "y": 279.6171875 },
           "data": { "label": "Agent Task", "hasMultipleIncomingWarning": false } },
+        { "id": "Activity_trg0001", "type": "trigger", "position": { "x": 1897, "y": 279.6171875 },
+          "data": { "label": "Notify finance",
+            "event": { "id": "<event uuid>", "name": "<event name>" },
+            "body": { "interfaceData": { "total": "{Outputs>/Activity_chk01/total}" } },
+            "hasMultipleIncomingWarning": false } },
         { "id": "Activity_9iuabt2", "type": "tableInteraction", "position": { "x": -201.9921875, "y": 202.17578125 },
           "data": { "label": "Table Interaction", "hasMultipleIncomingWarning": false } }
     ],
@@ -238,6 +246,8 @@ Fields the canvas maintains for itself appear here too, and you do not author th
         { "id": "Flow_cpjdkla", "source": "Gateway_join1", "sourceHandle": "out-1",
           "target": "Activity_2wgxw3g", "targetHandle": "in-1", "data": { "isRouteAbove": false } },
         { "id": "Flow_9e8nsmz", "source": "Activity_2wgxw3g", "sourceHandle": "out-1",
+          "target": "Activity_trg0001", "targetHandle": "in-1", "data": { "isRouteAbove": false } },
+        { "id": "Flow_trg0001", "source": "Activity_trg0001", "sourceHandle": "out-1",
           "target": "Event_end001", "targetHandle": "in-1", "data": { "isRouteAbove": false } },
         { "id": "Flow_hpapjvi", "source": "Event_str001", "sourceHandle": "out-1",
           "target": "Activity_9iuabt2", "targetHandle": "in-1", "data": { "isRouteAbove": false } },
